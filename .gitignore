@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Temporary training artifacts & logs
+data/training_workspace/
+runs/
+*.log
+alerts/images/*.jpg
+alerts/logs/*.jsonl
+
+# Keep directories structure
+!alerts/images/.gitkeep
+!alerts/logs/.gitkeep
+!data/collected/.gitkeep
+!data/pending_review/.gitkeep
+!data/approved/.gitkeep
+!data/validation/.gitkeep
+!models/candidates/.gitkeep
+!models/archive/.gitkeep
+
+# Sensitive environment variables
+.env
+!.env.example
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
