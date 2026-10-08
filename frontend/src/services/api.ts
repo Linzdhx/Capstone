@@ -1,4 +1,4 @@
-import { ModelVersionInfo, DatasetItem, AlertEvent, TrainingStatus } from '../types';
+import { ModelVersionInfo, DatasetItem, AlertEvent, TrainingStatus, DashboardSummary, IncidentSummary, LocationData, ReplenishmentAlertRecord, UploadAnalysisResponse } from '../types';
 
 export const api = {
   // Cámara
@@ -133,5 +133,96 @@ export const api = {
   async getSystemMetrics() {
     const res = await fetch('/api/system/metrics');
     return res.json();
-  }
+  },
+
+  // ---------------------------------------------------------------------------
+  // Stock & Incidents API
+  // ---------------------------------------------------------------------------
+
+  async getStockDashboard(): Promise<DashboardSummary> {
+    const res = await fetch('/api/stock/dashboard');
+    if (!res.ok) throw new Error('Error al cargar el dashboard de stock');
+    return res.json();
+  },
+
+  async getLocations(activeOnly = true): Promise<LocationData[]> {
+    const res = await fetch(`/api/stock/locations?active_only=${activeOnly}`);
+    if (!res.ok) throw new Error('Error al cargar ubicaciones');
+    return res.json();
+  },
+
+  async getIncidents(status?: string, locationId?: string, limit = 100): Promise<IncidentSummary[]> {
+    let url = `/api/stock/incidents?limit=${limit}`;
+    if (status) url += `&status=${status}`;
+    if (locationId) url += `&location_id=${locationId}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Error al cargar incidencias');
+    return res.json();
+  },
+
+  async resolveIncident(incidentId: string): Promise<any> {
+    const res = await fetch(`/api/stock/incidents/${incidentId}/resolve`, {
+      method: 'PATCH',
+    });
+    if (!res.ok) throw new Error('Error al resolver incidencia');
+    return res.json();
+  },
+
+  async sendReplenishmentAlert(incidentId: string, channel: string = 'webhook'): Promise<ReplenishmentAlertRecord> {
+    const res = await fetch(`/api/stock/incidents/${incidentId}/alert`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Error al enviar alerta de reposición');
+    }
+    return res.json();
+  },
+
+  // ---------------------------------------------------------------------------
+  // Zona de Análisis & Gestión /historica
+  // ---------------------------------------------------------------------------
+
+  async uploadImages(files: File[]): Promise<UploadAnalysisResponse> {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('files', file);
+    }
+    const res = await fetch('/api/stock/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Error al procesar las imágenes con YOLOv8');
+    }
+    return res.json();
+  },
+
+  async resolveHistoricaFile(filename: string): Promise<any> {
+    const res = await fetch(`/api/stock/historica/${encodeURIComponent(filename)}/resolve`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Error al resolver la falla');
+    }
+    return res.json();
+  },
+
+  async sendHistoricaAlert(filename: string, channel: string = 'webhook'): Promise<ReplenishmentAlertRecord> {
+    const res = await fetch(`/api/stock/historica/${encodeURIComponent(filename)}/alert`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Error al enviar alerta de reposición');
+    }
+    return res.json();
+  },
 };
+

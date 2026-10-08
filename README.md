@@ -332,3 +332,12 @@ Cobertura de pruebas:
    - Verifica que la condición persista durante los 3 segundos configurados de forma continua y que no se encuentre en periodo de cooldown (observa el contador de cooldown en la tarjeta del Dashboard o Alertas).
 4. **El reentrenamiento no inicia:**
    - Asegúrate de haber aprobado al menos 5 imágenes en la pestaña **Active Learning** (`data/approved/`).
+
+---
+
+## 17. Actualizaciones Recientes (Mejoras de UI y Lógica)
+
+- **Grid Adaptativo de Cámaras:** Implementación de un diseño responsive en la página de cámaras (`CameraPage.tsx`) que adapta el layout dinámicamente según la cantidad de cámaras activas (soporta layouts de 0 a 4+ cámaras, e incluye paneles de "Sin señal" / "No video"). Además, previene que los reproductores desaparezcan abruptamente del grid al pausar la transmisión.
+- **Diagnóstico IA (Debug) en Dashboard:** Adición de un componente desplegable interactivo en las tarjetas de pasillo (`AisleCard.tsx`) que expone métricas en tiempo real (cajas crudas, cajas válidas tras aplicar filtros, porcentaje de ocupación, confianza promedio y array de confianzas) para facilitar la depuración visual.
+- **Refinamiento de Lógica de Detección:** Actualización del pipeline de filtrado de objetos (`incident_service.py`) implementando umbrales de confianza asimétricos y reglas morfológicas para distinguir correctamente entre una "góndola completamente vacía" (alerta crítica SIN_STOCK) y espacios vacíos regulares.
+- **Estabilidad en Windows:** Corrección en el arranque del servidor (`run.py`) para forzar la salida de stdout/stderr a UTF-8 y prevenir cuelgues (UnicodeEncodeError) al renderizar emojis o caracteres especiales en la consola de Windows.

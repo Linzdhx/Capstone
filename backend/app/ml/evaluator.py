@@ -3,6 +3,7 @@ import json
 import time
 from pathlib import Path
 from typing import Dict, Any, Tuple, Optional
+import torch
 from ultralytics import YOLO
 
 from backend.app.core.logging import logger
@@ -26,7 +27,7 @@ class ModelEvaluator:
         
         try:
             model = YOLO(str(model_path))
-            device = "cuda" if settings.model.device == "cuda" or (settings.model.device == "auto") else "cpu"
+            device = 0 if torch.cuda.is_available() and settings.model.device in ["cuda", "gpu", "0", "auto"] else "cpu"
             
             # Ejecutar validación
             val_results = model.val(

@@ -64,17 +64,18 @@ class InventoryService:
             target_dets = self.filter_by_roi(detections, frame_width, frame_height)
             roi_applied = True
 
-        products = sum(1 for d in target_dets if d.class_name.lower() == "product")
-        missing = sum(1 for d in target_dets if d.class_name.lower() == "missing")
+        products = sum(1 for d in target_dets if d.class_name.lower() == "product" and d.confidence >= 0.45)
+        missing = sum(1 for d in target_dets if d.class_name.lower() == "missing" and d.confidence >= 0.40)
         total_spaces = products + missing
 
         if total_spaces == 0:
+            # Góndola vacía sin detecciones: 0% ocupación, 100% vacío
             return InventoryMetrics(
                 products=0,
                 missing=0,
                 total_spaces=0,
                 occupancy_rate=0.0,
-                empty_rate=0.0,
+                empty_rate=1.0,
                 roi_applied=roi_applied
             )
 

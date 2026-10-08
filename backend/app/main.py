@@ -16,6 +16,7 @@ from backend.app.api.dataset import router as dataset_router
 from backend.app.api.training import router as training_router
 from backend.app.api.system import router as system_router
 from backend.app.api.ws import router as ws_router
+from backend.app.api.stock import router as stock_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -54,6 +55,7 @@ app.include_router(dataset_router)
 app.include_router(training_router)
 app.include_router(system_router)
 app.include_router(ws_router)
+app.include_router(stock_router)
 
 @app.get("/api/health")
 def health_check():

@@ -11,6 +11,15 @@ from backend.app.services.inventory_service import inventory_service, InventoryS
 from backend.app.services.alert_service import alert_service, AlertService
 from backend.app.schemas.detection import DetectionResult, DetectionItem
 from backend.app.schemas.inventory import InventoryMetrics
+# Import lazy para evitar importación circular; se resuelve al primer uso
+_incident_service = None
+
+def _get_incident_service():
+    global _incident_service
+    if _incident_service is None:
+        from backend.app.services.incident_service import incident_service as _svc
+        _incident_service = _svc
+    return _incident_service
 
 class DetectionService:
     """Orquestador de inferencia continua, dibujo de bounding boxes y puente entre cámara, inventario y alertas."""
@@ -186,8 +195,18 @@ class DetectionService:
                 # 2. Análisis de métricas con InventoryService
                 metrics = self.inventory.calculate_metrics(det_result.detections, w, h)
 
-                # 3. Evaluación de Alertas
+                # 3. Evaluación de Alertas (sistema de alertas global existente)
                 self.alerts.evaluate(metrics, frame, len(det_result.detections))
+
+                # 3b. Procesamiento de incidencias por faltantes
+                try:
+                    _get_incident_service().process_frame(
+                        detections=det_result.detections,
+                        frame=frame,
+                        location_id="GND-001"
+                    )
+                except Exception as inc_err:
+                    logger.debug(f"IncidentService: {inc_err}")
 
                 # 4. Renderizado visual
                 annotated = self._draw_annotations(frame, det_result, metrics)

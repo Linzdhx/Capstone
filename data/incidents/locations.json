@@ -1,0 +1,65 @@
+[
+  {
+    "id": "GND-001",
+    "name": "GND-001",
+    "display_order": 1,
+    "display_name": "Pasillo 1",
+    "is_active": true,
+    "created_at": "2026-09-25T15:33:31Z",
+    "updated_at": "2026-09-25T15:33:31Z"
+  },
+  {
+    "id": "GND-TEST-1",
+    "name": "GND-TEST-1",
+    "display_order": 2,
+    "display_name": "Pasillo 2",
+    "is_active": true,
+    "created_at": "2026-09-25T15:35:13Z",
+    "updated_at": "2026-09-25T15:35:13Z"
+  },
+  {
+    "id": "GND-TEST-2",
+    "name": "GND-TEST-2",
+    "display_order": 1,
+    "display_name": "Pasillo 3",
+    "is_active": true,
+    "created_at": "2026-09-25T15:35:13Z",
+    "updated_at": "2026-09-25T15:35:14Z"
+  },
+  {
+    "id": "GND-TEST-3",
+    "name": "GND-TEST-3",
+    "display_order": 2,
+    "display_name": "Pasillo 4",
+    "is_active": true,
+    "created_at": "2026-09-25T15:35:13Z",
+    "updated_at": "2026-09-25T15:35:14Z"
+  },
+  {
+    "id": "GND-ORIG-1",
+    "name": "Pasillo 1",
+    "display_order": 5,
+    "display_name": "Pasillo 5",
+    "is_active": true,
+    "created_at": "2026-09-25T15:35:14Z",
+    "updated_at": "2026-09-25T15:35:14Z"
+  },
+  {
+    "id": "GND-ORIG-2",
+    "name": "Pasillo 2",
+    "display_order": 3,
+    "display_name": "Pasillo 6",
+    "is_active": true,
+    "created_at": "2026-09-25T15:35:14Z",
+    "updated_at": "2026-09-25T15:35:14Z"
+  },
+  {
+    "id": "GND-ALERT-TEST",
+    "name": "GND-ALERT-TEST",
+    "display_order": 4,
+    "display_name": "Pasillo 6",
+    "is_active": true,
+    "created_at": "2026-09-25T15:35:14Z",
+    "updated_at": "2026-10-04T18:41:58Z"
+  }
+]
