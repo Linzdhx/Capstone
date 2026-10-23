@@ -1,24 +1,44 @@
-import { ModelVersionInfo, DatasetItem, AlertEvent, TrainingStatus, DashboardSummary, IncidentSummary, LocationData, ReplenishmentAlertRecord, UploadAnalysisResponse } from '../types';
+import { ModelVersionInfo, DatasetItem, AlertEvent, TrainingStatus, DashboardSummary, IncidentSummary, LocationData, ReplenishmentAlertRecord, UploadAnalysisResponse, CameraDeviceItem } from '../types';
 
 export const api = {
-  // Cámara
+  // Cámaras Multi-Fuente
+  async listCameras(): Promise<CameraDeviceItem[]> {
+    const res = await fetch('/api/camera/list');
+    return res.json();
+  },
+  async scanCameras(): Promise<CameraDeviceItem[]> {
+    const res = await fetch('/api/camera/scan', { method: 'POST' });
+    return res.json();
+  },
+  async addCamera(data: { name?: string; source_type: string; webcam_index?: number; rtsp_url?: string }) {
+    const res = await fetch('/api/camera/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+  async removeCamera(cam_id: string) {
+    const res = await fetch(`/api/camera/${cam_id}`, { method: 'DELETE' });
+    return res.json();
+  },
   async getCameraStatus() {
     const res = await fetch('/api/camera/status');
     return res.json();
   },
-  async controlCamera(action: 'start' | 'stop') {
+  async controlCamera(action: 'start' | 'stop', cam_id?: string) {
     const res = await fetch('/api/camera/control', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ action, cam_id }),
     });
     return res.json();
   },
-  async setCameraSource(source_type: string, webcam_index = 0, rtsp_url = '') {
+  async setCameraSource(source_type: string, webcam_index = 0, rtsp_url = '', name?: string) {
     const res = await fetch('/api/camera/source', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source_type, webcam_index, rtsp_url }),
+      body: JSON.stringify({ source_type, webcam_index, rtsp_url, name }),
     });
     return res.json();
   },

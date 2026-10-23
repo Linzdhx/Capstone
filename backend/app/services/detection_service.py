@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 
 from backend.app.core.logging import logger
-from backend.app.services.camera_service import camera_service, CameraService
+from backend.app.services.camera_service import camera_manager
 from backend.app.ml.model_manager import ModelManager
 from backend.app.services.inventory_service import inventory_service, InventoryService
 from backend.app.services.alert_service import alert_service, AlertService
@@ -26,12 +26,12 @@ class DetectionService:
 
     def __init__(
         self,
-        camera: Optional[CameraService] = None,
+        camera_mgr=None,
         model_mgr: Optional[ModelManager] = None,
         inv_service: Optional[InventoryService] = None,
         alt_service: Optional[AlertService] = None
     ):
-        self.camera = camera or camera_service
+        self.camera_mgr = camera_mgr or camera_manager
         self.model_mgr = model_mgr or ModelManager()
         self.inventory = inv_service or inventory_service
         self.alerts = alt_service or alert_service
@@ -40,17 +40,13 @@ class DetectionService:
         self._running = False
         self._thread: Optional[threading.Thread] = None
 
-        self._latest_detections: DetectionResult = DetectionResult()
-        self._latest_metrics: InventoryMetrics = InventoryMetrics()
-        self._latest_annotated_frame: Optional[np.ndarray] = None
-        self._fps: float = 0.0
-        self._fps_counter: int = 0
-        self._fps_timer: float = time.time()
+        self._latest_detections: Dict[str, DetectionResult] = {}
+        self._latest_metrics: Dict[str, InventoryMetrics] = {}
+        self._latest_annotated_frame: Dict[str, Optional[np.ndarray]] = {}
+        self._fps: Dict[str, float] = {}
+        self._fps_counter: Dict[str, int] = {}
+        self._fps_timer: Dict[str, float] = {}
 
-        # Paleta de colores visualmente atractiva (BGR)
-        # Missing: Coral / Rojo suave (0, 70, 240)
-        # Product: Verde esmeralda fresco (60, 200, 70)
-        # ROI: Azul eléctrico (255, 180, 20)
         self.colors = {
             "missing": (30, 40, 235),
             "product": (50, 200, 60),
@@ -63,11 +59,12 @@ class DetectionService:
             if self._running:
                 return
             self._running = True
-            if not self.camera.is_running:
-                self.camera.start()
+            for cam in self.camera_mgr.get_all().values():
+                if not cam.is_running:
+                    cam.start()
             self._thread = threading.Thread(target=self._detection_loop, daemon=True)
             self._thread.start()
-            logger.info("DetectionService iniciado.")
+            logger.info("DetectionService iniciado (Modo Multi-Cámara).")
 
     def stop(self) -> None:
         with self._lock:
@@ -76,19 +73,24 @@ class DetectionService:
             self._thread.join(timeout=2.0)
         logger.info("DetectionService detenido.")
 
-    def get_latest_result(self) -> Tuple[DetectionResult, InventoryMetrics, float]:
+    def get_latest_result(self, cam_id: str = "main") -> Tuple[DetectionResult, InventoryMetrics, float]:
         with self._lock:
-            return self._latest_detections, self._latest_metrics, self._fps
+            return (
+                self._latest_detections.get(cam_id, DetectionResult()),
+                self._latest_metrics.get(cam_id, InventoryMetrics()),
+                self._fps.get(cam_id, 0.0)
+            )
 
-    def get_latest_annotated_jpeg(self) -> Optional[bytes]:
+    def get_latest_annotated_jpeg(self, cam_id: str = "main") -> Optional[bytes]:
         with self._lock:
-            frame = self._latest_annotated_frame
+            frame = self._latest_annotated_frame.get(cam_id)
             if frame is None:
-                # Si no hay frame procesado aún, intentar del camera service
-                raw = self.camera.get_latest_frame()
-                if raw is not None:
-                    _, buf = cv2.imencode(".jpg", raw, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-                    return buf.tobytes()
+                cam = self.camera_mgr.get_camera(cam_id)
+                if cam:
+                    raw = cam.get_latest_frame()
+                    if raw is not None:
+                        _, buf = cv2.imencode(".jpg", raw, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+                        return buf.tobytes()
                 return None
             _, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
             return buf.tobytes()
@@ -97,13 +99,12 @@ class DetectionService:
         self,
         frame: np.ndarray,
         detection_result: DetectionResult,
-        metrics: InventoryMetrics
+        metrics: InventoryMetrics,
+        fps: float
     ) -> np.ndarray:
-        """Dibuja bounding boxes estilizados, etiquetas y HUD con métricas."""
         annotated = frame.copy()
         h, w = annotated.shape[:2]
 
-        # 1. Dibujar ROI si está configurado
         if self.inventory.roi:
             rx1 = int(self.inventory.roi[0] * w)
             ry1 = int(self.inventory.roi[1] * h)
@@ -120,7 +121,6 @@ class DetectionService:
                 2
             )
 
-        # 2. Dibujar bounding boxes de detecciones
         target_dets = detection_result.detections
         if self.inventory.roi:
             target_dets = self.inventory.filter_by_roi(target_dets, w, h)
@@ -130,10 +130,8 @@ class DetectionService:
             cls_name = det.class_name.lower()
             color = self.colors.get(cls_name, (200, 200, 200))
 
-            # Rectángulo exterior
             cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
 
-            # Etiqueta con fondo semitransparente
             label = f"{det.class_name.upper()} {int(det.confidence * 100)}%"
             (lw, lh), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
             y_label_top = max(0, y1 - lh - 8)
@@ -149,21 +147,18 @@ class DetectionService:
                 cv2.LINE_AA
             )
 
-        # 3. HUD superior estilizado
-        # Fondo oscuro sutil para el HUD
         cv2.rectangle(annotated, (0, 0), (w, 42), (20, 24, 30), -1)
         cv2.line(annotated, (0, 42), (w, 42), (50, 60, 75), 1)
 
         hud_text = (
             f"MODEL: {detection_result.model_version} | "
-            f"FPS: {round(self._fps, 1)} | "
+            f"FPS: {round(fps, 1)} | "
             f"PROD: {metrics.products} | "
             f"MISSING: {metrics.missing} | "
             f"EMPTY: {round(metrics.empty_rate * 100, 1)}% | "
             f"LATENCY: {round(detection_result.timings.total_ms, 1)}ms"
         )
         
-        # Color del texto de estado en HUD si hay alerta
         status_color = (60, 60, 240) if metrics.empty_rate >= 0.80 and metrics.total_spaces > 0 else (220, 220, 220)
         cv2.putText(
             annotated,
@@ -179,57 +174,60 @@ class DetectionService:
         return annotated
 
     def _detection_loop(self) -> None:
-        """Bucle principal de inferencia periódica."""
         while self._running:
-            frame = self.camera.get_latest_frame()
-            if frame is None:
-                time.sleep(0.03)
-                continue
-
-            h, w = frame.shape[:2]
-
-            try:
-                # 1. Inferencia con ModelManager
-                det_result = self.model_mgr.predict(frame)
-
-                # 2. Análisis de métricas con InventoryService
-                metrics = self.inventory.calculate_metrics(det_result.detections, w, h)
-
-                # 3. Evaluación de Alertas (sistema de alertas global existente)
-                self.alerts.evaluate(metrics, frame, len(det_result.detections))
-
-                # 3b. Procesamiento de incidencias por faltantes
-                try:
-                    _get_incident_service().process_frame(
-                        detections=det_result.detections,
-                        frame=frame,
-                        location_id="GND-001"
-                    )
-                except Exception as inc_err:
-                    logger.debug(f"IncidentService: {inc_err}")
-
-                # 4. Renderizado visual
-                annotated = self._draw_annotations(frame, det_result, metrics)
-
-                # 5. Cálculo de FPS de inferencia
-                self._fps_counter += 1
-                now = time.time()
-                dt = now - self._fps_timer
-                if dt >= 1.0:
-                    self._fps = self._fps_counter / dt
-                    self._fps_counter = 0
-                    self._fps_timer = now
-
-                with self._lock:
-                    self._latest_detections = det_result
-                    self._latest_metrics = metrics
-                    self._latest_annotated_frame = annotated
-
-            except Exception as e:
-                logger.error(f"Error en bucle de detección: {e}")
+            cameras_to_process = list(self.camera_mgr.get_all().items())
+            if not cameras_to_process:
                 time.sleep(0.05)
+                continue
+                
+            for cam_id, cam in cameras_to_process:
+                if not self._running: break
+                frame = cam.get_latest_frame()
+                if frame is None:
+                    continue
 
-            # Pequeña pausa para no saturar CPU cuando la cámara no entrega nuevo frame
+                h, w = frame.shape[:2]
+
+                try:
+                    det_result = self.model_mgr.predict(frame)
+                    metrics = self.inventory.calculate_metrics(det_result.detections, w, h)
+                    
+                    if cam_id == "main":
+                        self.alerts.evaluate(metrics, frame, len(det_result.detections))
+                        try:
+                            _get_incident_service().process_frame(
+                                detections=det_result.detections,
+                                frame=frame,
+                                location_id="GND-001"
+                            )
+                        except Exception as inc_err:
+                            logger.debug(f"IncidentService: {inc_err}")
+
+                    if cam_id not in self._fps_timer:
+                        self._fps_timer[cam_id] = time.time()
+                        self._fps_counter[cam_id] = 0
+                        self._fps[cam_id] = 0.0
+
+                    self._fps_counter[cam_id] += 1
+                    now = time.time()
+                    dt = now - self._fps_timer[cam_id]
+                    if dt >= 1.0:
+                        self._fps[cam_id] = self._fps_counter[cam_id] / dt
+                        self._fps_counter[cam_id] = 0
+                        self._fps_timer[cam_id] = now
+                    
+                    fps_val = self._fps[cam_id]
+                    annotated = self._draw_annotations(frame, det_result, metrics, fps_val)
+
+                    with self._lock:
+                        self._latest_detections[cam_id] = det_result
+                        self._latest_metrics[cam_id] = metrics
+                        self._latest_annotated_frame[cam_id] = annotated
+
+                except Exception as e:
+                    logger.error(f"Error en bucle de detección ({cam_id}): {e}")
+                    time.sleep(0.01)
+
             time.sleep(0.005)
 
 detection_service = DetectionService()

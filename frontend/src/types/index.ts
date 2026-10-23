@@ -76,9 +76,24 @@ export interface SystemTelemetry {
   };
 }
 
+export interface CameraDeviceItem {
+  id: string;
+  name?: string;
+  stream_url: string;
+  status: 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR' | string;
+  source_type: string;
+  source_display: string;
+  fps: number;
+  resolution: { width: number; height: number };
+  error?: string | null;
+  is_main?: boolean;
+}
+
 export interface TelemetryMessage {
   timestamp: number;
   camera: CameraInfo;
+  /** Lista dinámica de todas las cámaras detectadas con metadatos y stream URLs */
+  cameras?: CameraDeviceItem[];
   model: ModelTelemetry;
   inventory: InventoryTelemetry;
   alert: AlertTelemetry;

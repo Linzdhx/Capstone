@@ -185,16 +185,27 @@ El contenedor expondrá el servicio en el puerto `8000` con persistencia en `./m
 
 ---
 
-## 7. Configuración de Cámara
+## 7. Sistema Multi-Cámara y Detección Automática en Vivo
 
-El sistema soporta cuatro modalidades en `CameraService`:
+El sistema incorpora un gestor centralizado `CameraManager` y servicio desacoplado `CameraService` con soporte multi-fuente y visualización concurrente en tiempo real:
 
-1. **Webcam Integrada / USB (Índice):** Configura `CAMERA_SOURCE_TYPE=webcam` y `CAMERA_WEBCAM_INDEX=0` (o 1, 2 para cámaras USB secundarias).
-2. **Cámara USB Externa:** Selecciona `usb` e indica el índice.
-3. **Cámara IP (RTSP):** Configura la URL RTSP completa (ej: `rtsp://usuario:clave@192.168.1.100:554/h264`). **Seguridad:** Las credenciales nunca se envían al frontend.
-4. **Simulador Sintético de Estantería (`synthetic`):** Generador de góndola con productos y ganchos vacíos alternantes. Permite desarrollar, probar alertas y evaluar el sistema incluso en servidores sin cámara física conectada.
+1. **Detección Automática de Cámaras Físicas (Plug & Play):**
+   - Al iniciar la aplicación, el sistema sondea automáticamente los puertos y dispositivos de video disponibles (índices 0..3) en Windows mediante DirectShow (`cv2.CAP_DSHOW`).
+   - Resuelve automáticamente los nombres amigables de los dispositivos conectados desde el registro de Windows (`KSCATEGORY_CAPTURE`), por ejemplo: `HP TrueVision HD Camera` (cámara integrada) y `General Image Device` (webcam USB externa).
+   - Registra cada cámara física con una identidad única y persistente (`main`, `cam-2`, etc.) y arranca sus hilos de captura de forma inmediata e independiente.
 
-*Reconexión Automática:* Si la cámara se desconecta físicamente, el servicio entra en modo `CONNECTING` y reintenta la conexión periódicamente cada 3 segundos sin congelar la aplicación.
+2. **Detección Dinámica en Caliente (Hotplug DSHOW-Safe):**
+   - Un hilo en segundo plano supervisa periódicamente (cada 8 segundos) la conexión de nuevas cámaras.
+   - **Prevención de colisiones en Windows:** El detector sondea *únicamente* los índices físicos que no están en uso por servicios activos, evitando bloqueos de recursos, excepciones de bajo nivel en OpenCV y reinicios innecesarios.
+
+3. **Transmisiones MJPEG Independientes y Bounding Boxes YOLOv8:**
+   - Cada cámara dispone de su propia URL de stream HTTP dedicada: `/api/camera/stream/main`, `/api/camera/stream/cam-2`, etc.
+   - Bucle de detección continuo orquestado por `DetectionService`: cada fotograma se procesa de forma individual para generar bounding boxes y telemetría por cámara sin clonar ni mezclar fuentes.
+   - **Tolerancia a fallos:** Si una cámara se desconecta o pierde señal, el sistema emite automáticamente un fotograma informativo (*placeholder*) estilizado indicando el estado de desconexión sin congelar la transmisión de las demás cámaras ni romper el elemento de video en el navegador.
+
+4. **Cámaras IP / RTSP y Simulador Sintético:**
+   - Permite añadir transmisiones RTSP seguras (`rtsp://usuario:clave@ip:puerto/stream`) o simuladores de góndola sintéticos desde la interfaz web o mediante la API REST (`POST /api/camera/add`).
+   - Las credenciales sensibles de cámaras IP se enmascaran automáticamente antes de reportarse a la telemetría y a la interfaz web.
 
 ---
 
@@ -335,9 +346,24 @@ Cobertura de pruebas:
 
 ---
 
-## 17. Actualizaciones Recientes (Mejoras de UI y Lógica)
+## 17. Actualizaciones Recientes (Mejoras Multi-Cámara, UI y Lógica)
 
-- **Grid Adaptativo de Cámaras:** Implementación de un diseño responsive en la página de cámaras (`CameraPage.tsx`) que adapta el layout dinámicamente según la cantidad de cámaras activas (soporta layouts de 0 a 4+ cámaras, e incluye paneles de "Sin señal" / "No video"). Además, previene que los reproductores desaparezcan abruptamente del grid al pausar la transmisión.
+- **Detección Automática y Gestión Multi-Cámara Real:**
+  Implementación de descubrimiento automático de cámaras físicas disponibles mediante escaneo de DirectShow y resolución de nombres reales desde el Registro de Windows (`HP TrueVision HD Camera`, `General Image Device`, etc.). El sistema inicializa todos los dispositivos disponibles en hilos independientes sin forzar al usuario a configurarlos manualmente.
+- **Corrección Definitiva de Duplicación de Video:**
+  Eliminación de la causa raíz donde al agregar o visualizar una segunda cámara se clonaba la transmisión de la primera. Cada cámara cuenta con un identificador persistente e invariable (`main`, `cam-2`), una configuración aislada y un endpoint MJPEG exclusivo (`/api/camera/stream/{cam_id}`).
+- **Rediseño UX/UI de «Cámaras en Vivo»:**
+  - Depuración completa de la interfaz: eliminación de botones técnicos de prueba confusos ("0 Cámaras", "1 Cámara (2 Paneles)", "2 Cámaras", etc.) y campos numéricos de bajo nivel.
+  - Grid dinámico y adaptativo que renderiza de 1 a N cámaras con sus nombres descriptivos, resolución nativa (1280x720) y tasa de fotogramas en tiempo real (~30 FPS).
+  - Badges de estado intuitivos con indicadores luminosos: **«En vivo»** (verde pulsante), **«Conectando cámara…»** (amarillo) y **«Cámara desconectada»** (rojo).
+  - Modal secundario elegante para añadir cámaras IP / RTSP o simuladores de góndola sin afectar el flujo de webcams USB.
+  - Acordeón colapsable para configuración de umbrales YOLOv8 (Confidence, IoU) y Zona de Interés (ROI).
+- **Prevención de Conflictos DirectShow en Windows (DSHOW-Safe):**
+  Optimización del hilo de hotplug para verificar exclusivamente índices de cámara libres, evitando colisiones de acceso exclusivo en Windows, excepciones de bajo nivel en OpenCV y desconexiones intermitentes.
+- **Tolerancia a Desconexión y Fotogramas Placeholder:**
+  Si una cámara pierde señal o se desconecta físicamente, el sistema emite un fotograma oscuro informativo (*placeholder*) personalizado con el nombre del dispositivo, evitando que el reproductor web falle o muestre errores de conexión rota.
+- **Prevención de Caché Estática en Servidor (`NoCacheStaticFiles`):**
+  Configuración de encabezados HTTP `no-cache, no-store, must-revalidate` en el montaje estático de FastAPI para asegurar que los navegadores siempre reciban la última versión compilada del frontend React.
 - **Diagnóstico IA (Debug) en Dashboard:** Adición de un componente desplegable interactivo en las tarjetas de pasillo (`AisleCard.tsx`) que expone métricas en tiempo real (cajas crudas, cajas válidas tras aplicar filtros, porcentaje de ocupación, confianza promedio y array de confianzas) para facilitar la depuración visual.
 - **Refinamiento de Lógica de Detección:** Actualización del pipeline de filtrado de objetos (`incident_service.py`) implementando umbrales de confianza asimétricos y reglas morfológicas para distinguir correctamente entre una "góndola completamente vacía" (alerta crítica SIN_STOCK) y espacios vacíos regulares.
 - **Estabilidad en Windows:** Corrección en el arranque del servidor (`run.py`) para forzar la salida de stdout/stderr a UTF-8 y prevenir cuelgues (UnicodeEncodeError) al renderizar emojis o caracteres especiales en la consola de Windows.
