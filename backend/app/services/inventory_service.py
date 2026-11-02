@@ -1,6 +1,7 @@
 from typing import List, Optional, Tuple
 from backend.app.schemas.detection import DetectionItem
 from backend.app.schemas.inventory import InventoryMetrics
+from backend.app.services.semaforo_service import clasificar   # <- NUEVA (1/2)
 
 class InventoryService:
     """Servicio puro y aislado para cálculo de métricas de ocupación, vacíos y filtrado ROI."""
@@ -87,7 +88,8 @@ class InventoryService:
             total_spaces=total_spaces,
             occupancy_rate=occupancy_rate,
             empty_rate=empty_rate,
-            roi_applied=roi_applied
+            roi_applied=roi_applied,
+            semaforo=clasificar(occupancy_rate, total_spaces).value   # <- NUEVA (2/2)
         )
 
 inventory_service = InventoryService()

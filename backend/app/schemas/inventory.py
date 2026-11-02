@@ -8,6 +8,7 @@ class InventoryMetrics(BaseModel):
     occupancy_rate: float = 0.0
     empty_rate: float = 0.0
     roi_applied: bool = False
+    semaforo: str = "sin_datos"   # <- NUEVA: verde / amarillo / rojo / sin_datos
 
 class ROISetting(BaseModel):
     # Coordenadas normalizadas [x1, y1, x2, y2] entre 0.0 y 1.0
