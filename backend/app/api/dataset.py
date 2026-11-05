@@ -30,17 +30,18 @@ def get_dataset_image(stage: str, filename: str):
 
 @router.post("/capture")
 def manual_capture():
-    frame = detection_service.camera.get_latest_frame()
+    main_cam = detection_service.camera_mgr.get_camera("main")
+    frame = main_cam.get_latest_frame() if main_cam else None
     if frame is None:
         raise HTTPException(status_code=503, detail="No hay frames disponibles de la cámara")
 
-    det_result, metrics, _ = detection_service.get_latest_result()
+    det_result, metrics, _ = detection_service.get_latest_result("main")
     item = dataset_service.capture_sample(
         frame=frame,
         det_result=det_result,
         empty_rate=metrics.empty_rate,
         reason="manual_capture",
-        source=detection_service.camera.source_type,
+        source=main_cam.source_type if main_cam else "unknown",
         stage="pending_review"
     )
     return {"message": "Muestra capturada para revisión", "sample": item}

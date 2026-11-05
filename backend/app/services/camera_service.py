@@ -10,11 +10,12 @@ from backend.app.core.config import settings
 class CameraService:
     """Servicio de captura de cámara multi-fuente con hilo dedicado y reconexión automática."""
 
-    def __init__(self):
+    def __init__(self, name: str = "Cámara"):
         self._lock = threading.Lock()
         self._running = False
         self._thread: Optional[threading.Thread] = None
 
+        self.name: str = name
         self.source_type: str = settings.camera.source_type
         self.webcam_index: int = settings.camera.webcam_index
         self.rtsp_url: str = settings.camera.rtsp_url
@@ -48,6 +49,7 @@ class CameraService:
                 safe_source = "rtsp://***:***" if self.rtsp_url else "rtsp (no configurado)"
 
             return {
+                "name": self.name,
                 "status": self._status,
                 "source_type": self.source_type,
                 "source_display": safe_source,
@@ -241,4 +243,247 @@ class CameraService:
                 self._frame_count = 0
                 self._fps_timer = now
 
-camera_service = CameraService()
+def _detect_physical_cameras(max_index: int = 4) -> list:
+    """
+    Escanea los índices 0..max_index y devuelve la lista de índices que tienen
+    una cámara física conectada. Usa CAP_DSHOW en Windows para evitar demoras.
+    SOLO llamar al inicio, cuando ningún CameraService está activo aún.
+    """
+    found = []
+    for idx in range(max_index):
+        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+        if cap.isOpened():
+            ret, _ = cap.read()
+            if ret:
+                found.append(idx)
+        cap.release()
+        time.sleep(0.05)  # pequeña pausa entre pruebas
+    return found
+
+
+def _detect_new_camera_indices(skip_indices: set, max_index: int = 4) -> list:
+    """
+    Escanea SOLO los índices que NO están en skip_indices.
+    Esto es crítico: no intentar abrir cámaras que ya están siendo
+    usadas por un CameraService activo (causaría conflicto DSHOW en Windows).
+    """
+    found = []
+    for idx in range(max_index):
+        if idx in skip_indices:
+            continue  # Ya está registrado y activo — nunca tocarlo
+        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+        if cap.isOpened():
+            ret, _ = cap.read()
+            if ret:
+                found.append(idx)
+        cap.release()
+        time.sleep(0.05)
+    return found
+
+
+def get_windows_camera_devices() -> list:
+    """Obtiene la lista de nombres de cámaras físicas desde el registro de Windows."""
+    names = []
+    try:
+        import winreg
+        base = r'SYSTEM\CurrentControlSet\Control\DeviceClasses\{65e8773d-8f56-11d0-a3b9-00a0c9223196}'
+        k = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, base)
+        for i in range(winreg.QueryInfoKey(k)[0]):
+            sub = winreg.EnumKey(k, i)
+            if 'USB#VID' not in sub:
+                continue
+            try:
+                sk = winreg.OpenKey(k, sub + r'\#GLOBAL\Device Parameters')
+                fname, _ = winreg.QueryValueEx(sk, 'FriendlyName')
+                if fname not in names and 'controller' not in fname.lower():
+                    names.append(fname)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return names
+
+
+def _resolve_friendly_name(index: int, default_id: str) -> str:
+    """Devuelve un nombre amigable e identificable para la cámara física."""
+    devices = get_windows_camera_devices()
+    if index == 0:
+        integrated = [d for d in devices if any(k in d.lower() for k in ["truevision", "integrated", "builtin", "front", "internal"])]
+        if integrated:
+            return integrated[0]
+        if devices:
+            return devices[-1] if len(devices) > 1 else devices[0]
+        return "Cámara Principal (Webcam)"
+    elif index == 1:
+        external = [d for d in devices if not any(k in d.lower() for k in ["truevision", "integrated", "builtin", "internal"])]
+        if external:
+            return external[0]
+        if len(devices) > 1:
+            return devices[0]
+        return "Cámara Secundaria (USB)"
+    else:
+        return f"Cámara USB #{index}"
+
+
+_CAM_ID_MAP = ["main", "cam-2", "cam-3", "cam-4"]
+
+
+class CameraManager:
+    def __init__(self):
+        self.cameras: Dict[str, CameraService] = {}
+        self._lock = threading.Lock()
+        self._hotplug_thread: Optional[threading.Thread] = None
+        self._hotplug_running = False
+        # Mapa índice físico → cam_id para evitar duplicados
+        self._index_to_id: Dict[int, str] = {}
+        self._auto_detect_and_register()
+
+    def _auto_detect_and_register(self):
+        """Detecta cámaras físicas disponibles al arranque y las registra."""
+        source_type = settings.camera.source_type
+
+        if source_type == "synthetic":
+            self.add_camera("main", "synthetic", name="Simulador Sintético", auto_start=False)
+            logger.info("CameraManager: modo sintético registrado como 'main'.")
+            return
+
+        if source_type == "rtsp":
+            self.add_camera("main", "rtsp", rtsp_url=settings.camera.rtsp_url, name="Cámara IP (RTSP)", auto_start=False)
+            logger.info("CameraManager: cámara RTSP registrada como 'main'.")
+            return
+
+        # Modo webcam/usb: detectar todas las físicas disponibles
+        logger.info("CameraManager: escaneando cámaras físicas disponibles...")
+        found_indices = _detect_physical_cameras(max_index=4)
+
+        if not found_indices:
+            logger.warning("CameraManager: no se detectaron cámaras físicas. Activando modo sintético.")
+            self.add_camera("main", "synthetic", name="Simulador Sintético", auto_start=False)
+            return
+
+        for i, cam_index in enumerate(found_indices):
+            cam_id = _CAM_ID_MAP[i] if i < len(_CAM_ID_MAP) else f"cam-{i+1}"
+            name = _resolve_friendly_name(cam_index, cam_id)
+            self._index_to_id[cam_index] = cam_id
+            self.add_camera(cam_id, source_type, webcam_index=cam_index, name=name, auto_start=False)
+            logger.info(f"CameraManager: cámara física index={cam_index} ('{name}') registrada como '{cam_id}'.")
+
+        # Arrancar el hotplug loop para detectar cámaras nuevas en caliente
+        self._start_hotplug()
+
+    def _start_hotplug(self):
+        """Inicia el hilo de detección dinámica de nuevas cámaras."""
+        if self._hotplug_running:
+            return
+        self._hotplug_running = True
+        self._hotplug_thread = threading.Thread(
+            target=self._hotplug_loop, daemon=True, name="camera-hotplug"
+        )
+        self._hotplug_thread.start()
+        logger.info("CameraManager: hilo de hotplug iniciado.")
+
+    def scan_and_update(self) -> list:
+        """
+        Fuerza un escaneo seguro de índices libres y auto-registra cámaras nuevas.
+        Seguro en Windows DSHOW: nunca toca índices ya en uso.
+        """
+        source_type = settings.camera.source_type
+        if source_type in ("webcam", "usb"):
+            with self._lock:
+                occupied_indices = set(self._index_to_id.keys())
+
+            new_found = _detect_new_camera_indices(skip_indices=occupied_indices, max_index=4)
+            if new_found:
+                for cam_index in sorted(new_found):
+                    with self._lock:
+                        if cam_index in self._index_to_id:
+                            continue
+                        used_ids = set(self._index_to_id.values())
+                        cam_id = next(
+                            (c for c in _CAM_ID_MAP if c not in used_ids),
+                            f"cam-{cam_index+1}"
+                        )
+                        name = _resolve_friendly_name(cam_index, cam_id)
+                        self._index_to_id[cam_index] = cam_id
+
+                    self.add_camera(cam_id, source_type, webcam_index=cam_index, name=name, auto_start=True)
+                    logger.info(f"CameraManager [hotplug]: nueva cámara index={cam_index} ('{name}') -> '{cam_id}'.")
+
+        return self.list_cameras_info()
+
+    def _hotplug_loop(self):
+        """Bucle en segundo plano para detección periódica de dispositivos."""
+        SCAN_INTERVAL = 8.0
+        while self._hotplug_running:
+            time.sleep(SCAN_INTERVAL)
+            try:
+                self.scan_and_update()
+            except Exception as e:
+                logger.warning(f"CameraManager [hotplug] error: {e}")
+
+    def stop_hotplug(self):
+        self._hotplug_running = False
+
+    def add_camera(
+        self,
+        cam_id: str,
+        source_type: str,
+        webcam_index: Optional[int] = None,
+        rtsp_url: Optional[str] = None,
+        name: Optional[str] = None,
+        auto_start: bool = True
+    ) -> CameraService:
+        with self._lock:
+            if cam_id in self.cameras:
+                self.cameras[cam_id].stop()
+
+            cam_name = name or (
+                _resolve_friendly_name(webcam_index, cam_id)
+                if webcam_index is not None
+                else ("Cámara IP (RTSP)" if source_type == "rtsp" else "Simulador Sintético")
+            )
+            cam = CameraService(name=cam_name)
+            cam.change_source(source_type, webcam_index, rtsp_url)
+            self.cameras[cam_id] = cam
+            if webcam_index is not None:
+                self._index_to_id[webcam_index] = cam_id
+
+        if auto_start:
+            cam.start()
+
+        return cam
+
+    def get_camera(self, cam_id: str) -> Optional[CameraService]:
+        return self.cameras.get(cam_id)
+
+    def remove_camera(self, cam_id: str) -> bool:
+        if cam_id == "main":
+            return False  # No permitir eliminar cámara principal
+        with self._lock:
+            if cam_id in self.cameras:
+                self.cameras[cam_id].stop()
+                del self.cameras[cam_id]
+                for idx, cid in list(self._index_to_id.items()):
+                    if cid == cam_id:
+                        del self._index_to_id[idx]
+                return True
+        return False
+
+    def get_all(self) -> Dict[str, CameraService]:
+        return self.cameras
+
+    def list_cameras_info(self) -> list:
+        return [
+            {
+                "id": cam_id,
+                "stream_url": f"/api/camera/stream/{cam_id}",
+                "is_main": cam_id == "main",
+                **cam.get_info()
+            }
+            for cam_id, cam in self.cameras.items()
+        ]
+
+
+camera_manager = CameraManager()
+camera_service = camera_manager.get_camera("main")
+

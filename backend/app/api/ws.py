@@ -4,10 +4,27 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from backend.app.core.logging import logger
 from backend.app.services.detection_service import detection_service
+from backend.app.services.camera_service import camera_manager
 from backend.app.services.alert_service import alert_service
 from backend.app.api.system import get_system_metrics_dict
+from backend.app.services.image_ingestion_service import image_ingestion_service
 
 router = APIRouter(tags=["WebSocket"])
+
+
+@router.websocket("/ws/image-analysis")
+async def websocket_image_analysis(websocket: WebSocket):
+    """Entrega en tiempo real resultados de imágenes enviadas al endpoint de carga."""
+    await image_ingestion_service.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await image_ingestion_service.disconnect(websocket)
+    except Exception as exc:
+        await image_ingestion_service.disconnect(websocket)
+        logger.warning("Error en WebSocket de análisis de imágenes: %s", exc)
+
 
 @router.websocket("/ws/telemetry")
 async def websocket_telemetry(websocket: WebSocket):
@@ -16,10 +33,14 @@ async def websocket_telemetry(websocket: WebSocket):
     logger.info("Cliente WebSocket conectado a telemetría.")
     try:
         while True:
-            det_result, metrics, inference_fps = detection_service.get_latest_result()
-            cam_info = detection_service.camera.get_info()
+            det_result, metrics, inference_fps = detection_service.get_latest_result("main")
+            main_cam = camera_manager.get_camera("main")
+            cam_info = main_cam.get_info() if main_cam else {}
             alert_st = alert_service.get_status(metrics.empty_rate)
             sys_metrics = get_system_metrics_dict()
+
+            # Snapshot de todas las cámaras para detección dinámica en el frontend
+            cameras_snapshot = camera_manager.list_cameras_info()
 
             payload = {
                 "timestamp": asyncio.get_event_loop().time(),
@@ -29,6 +50,9 @@ async def websocket_telemetry(websocket: WebSocket):
                     "resolution": cam_info.get("resolution"),
                     "source": cam_info.get("source_display")
                 },
+                # Lista completa de cámaras activas/detectadas — permite que el frontend
+                # actualice el grid sin necesidad de polling adicional
+                "cameras": cameras_snapshot,
                 "model": {
                     "version": det_result.model_version,
                     "inference_fps": round(inference_fps, 1),

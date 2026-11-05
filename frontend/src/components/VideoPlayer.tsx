@@ -16,6 +16,8 @@ interface VideoPlayerProps {
   fps: number;
   resolution: { width: number; height: number };
   source: string;
+  camId?: string;
+  camName?: string;
   onSnapshotCaptured?: () => void;
 }
 
@@ -24,6 +26,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   fps,
   resolution,
   source,
+  camId,
+  camName,
   onSnapshotCaptured,
 }) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
@@ -33,7 +37,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const togglePlayback = async () => {
     try {
       const nextAction = isPlaying ? 'stop' : 'start';
-      await api.controlCamera(nextAction);
+      await api.controlCamera(nextAction, camId);
       setIsPlaying(!isPlaying);
     } catch (e) {
       console.error('Error toggling camera:', e);
@@ -88,7 +92,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       <div className="relative aspect-video w-full flex items-center justify-center bg-slate-950">
         {isPlaying ? (
           <img
-            src="/api/camera/stream"
+            src={source}
             alt="YOLOv8 Inventory Live Feed"
             className="w-full h-full object-contain"
             onError={() => {

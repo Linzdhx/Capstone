@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import yaml
+import torch
 from ultralytics import YOLO
 
 from backend.app.core.logging import logger
@@ -166,7 +167,17 @@ class TrainingWorker:
             logger.info(f"Iniciando fine-tuning usando modelo base {base_model_path} en {candidate_dir}")
 
             model = YOLO(str(base_model_path))
-            device = "cuda" if settings.model.device in ["cuda", "auto"] else "cpu"
+
+            # Detección dinámica de hardware: si CUDA está disponible se usa GPU (device=0), de lo contrario fallback a CPU
+            if torch.cuda.is_available() and settings.model.device in ["cuda", "gpu", "0", "auto"]:
+                device = 0
+                logger.info(f"Hardware para entrenamiento: GPU detectada ({torch.cuda.get_device_name(0)}). Asignando device=0.")
+            else:
+                device = "cpu"
+                if settings.model.device in ["cuda", "auto"] and not torch.cuda.is_available():
+                    logger.warning("CUDA no está disponible en este entorno (torch.cuda.is_available()=False). Fallback automático a device='cpu'.")
+                else:
+                    logger.info("Asignando device='cpu' para el entrenamiento.")
 
             # 3. Entrenamiento con Ultralytics
             train_results = model.train(

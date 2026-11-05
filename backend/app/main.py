@@ -16,6 +16,7 @@ from backend.app.api.dataset import router as dataset_router
 from backend.app.api.training import router as training_router
 from backend.app.api.system import router as system_router
 from backend.app.api.ws import router as ws_router
+from backend.app.api.stock import router as stock_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -54,6 +55,7 @@ app.include_router(dataset_router)
 app.include_router(training_router)
 app.include_router(system_router)
 app.include_router(ws_router)
+app.include_router(stock_router)
 
 @app.get("/api/health")
 def health_check():
@@ -63,8 +65,19 @@ def health_check():
         "active_model": detection_service.model_mgr.active_version
     }
 
+class NoCacheStaticFiles(StaticFiles):
+    def is_not_modified(self, response_headers, request_headers) -> bool:
+        return False
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
 # Montar frontend estático si existe la build
 frontend_dist = BASE_DIR / "frontend" / "dist"
 if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+    app.mount("/", NoCacheStaticFiles(directory=str(frontend_dist), html=True), name="frontend")
 
