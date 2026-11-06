@@ -82,10 +82,10 @@ ModelManager (Hot-Swap to Production & Rollback to Archive)
 │   └── logs/               # Registro continuo en JSONL (alerts.jsonl)
 │
 ├── historica/              # Capturas de góndola con anomalías/faltantes y metadatos (.meta.json)
-├── docs_personal/          # Documentación académica y de avance del equipo por entregas
-│   ├── Entrega1/           # Avances Entrega 1 (Fernandez, Merino, Salvatierra, Yañez)
-│   ├── Entrega2/           # Avances Entrega 2 (Fernandez, Merino, Salvatierra, Yañez)
-│   ├── Entrega3/           # Avances Entrega 3 (Fernandez, Merino, Salvatierra, Yañez)
+├── fases/                  # Documentación académica y de avance del equipo por fases
+│   ├── fase1/              # Avances Fase 1 (Fernandez, Merino, Salvatierra, Yañez)
+│   ├── fase2/              # Avances Fase 2 (Fernandez, Merino, Salvatierra, Yañez)
+│   ├── fase3/              # Avances Fase 3 (Fernandez, Merino, Salvatierra, Yañez)
 │   └── Presentaciones/     # Diapositivas y material de exposición del equipo (PPTX y PDF)
 │
 ├── configs/
@@ -486,23 +486,23 @@ El backend FastAPI expone una API REST modular, asíncrona y de alto rendimiento
 
 ---
 
-## 19. Estructura de Documentación Académica (`docs_personal`)
+## 19. Estructura de Documentación Académica (`fases`)
 
-La carpeta `docs_personal/` mantiene la trazabilidad, actas, informes de avance individual y entregables académicos del proyecto de título / Capstone:
+La carpeta `fases/` mantiene la trazabilidad, actas, informes de avance individual y entregables académicos del proyecto de título / Capstone:
 
 ```text
-docs_personal/
-├── Entrega1/
+fases/
+├── fase1/
 │   ├── Fernandez/       # Documentación individual y avances - Francisco Fernández
 │   ├── Merino/          # Documentación individual y avances - Francisco Merino
 │   ├── Salvatierra/     # Documentación individual y avances - David Salvatierra
 │   └── Yañez/           # Documentación individual y avances - David Yáñez
-├── Entrega2/
+├── fase2/
 │   ├── Fernandez/
 │   ├── Merino/
 │   ├── Salvatierra/
 │   └── Yañez/
-├── Entrega3/
+├── fase3/
 │   ├── Fernandez/
 │   ├── Merino/
 │   ├── Salvatierra/
