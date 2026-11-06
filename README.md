@@ -4,6 +4,48 @@ Sistema profesional, modular y de alto rendimiento para monitoreo automatizado d
 
 ---
 
+## Proyecto APT — Equipo, metodología y tecnologías
+
+**Proyecto:** Computer Vision Walmart (CVW) — Detección y monitoreo de quiebres de stock en góndolas mediante visión por computador.
+**Asignatura:** Capstone (PTY4614-003) · Ingeniería en Informática · Duoc UC, sede Padre Alonso de Ovalle · Cliente / contraparte: Walmart Chile.
+
+### Integrantes y roles
+
+| Integrante | Rol en el proyecto | Rol Scrum |
+|---|---|---|
+| Francisco Fernández | Desarrollador de IA / Data Engineer | Scrum Master |
+| David Yañez | Desarrollador de IA / Data Engineer | Equipo de desarrollo |
+| Francisco Merino | Desarrollador Backend e Integración | Equipo de desarrollo |
+| David Salvatierra | Desarrollador Backend e Integración | Equipo de desarrollo |
+
+- **Product Owner:** Dirección de operaciones de Walmart Chile.
+- **Docente guía:** Ceferino Anibal Sotelo.
+
+### Metodología
+
+Metodología ágil **Scrum**, organizada en **5 sprints** de 2 a 3 semanas:
+
+1. Adquisición y preparación de datos.
+2. Entrenamiento y prototipado del modelo de IA.
+3. Semáforo operativo y ubicaciones.
+4. Modularización en VS Code, API y alertas.
+5. Integración y pruebas.
+
+Se eligió Scrum por la naturaleza empírica de los proyectos de IA: permite validar el modelo en cada iteración y avanzar en paralelo con el desarrollo del software. Los artefactos (Product Vision, Product Backlog, Sprint Backlog, Definition of Done y Retrospectivas) están en [`fases/`](fases/).
+
+### Tecnologías
+
+| Área | Tecnologías |
+|---|---|
+| Modelo de IA | Python, Ultralytics YOLOv8, PyTorch, OpenCV, Albumentations, Roboflow, Google Colab (GPU T4) |
+| Backend | Python, FastAPI, Uvicorn, Pydantic, WebSockets |
+| Frontend | React, TypeScript, Vite, Tailwind CSS, Node.js |
+| Pruebas | pytest |
+| Despliegue | Docker, Docker Compose |
+| Gestión | GitHub (ramas por integrante y Pull Requests) |
+
+---
+
 ## 1. Requisitos del Sistema
 
 - **Sistema Operativo:** Windows 10/11 o Linux (Ubuntu 20.04/22.04 LTS).
@@ -513,3 +555,12 @@ fases/
 - Cada directorio cuenta con su respectivo archivo `.gitkeep` para garantizar el versionado de la estructura en Git.
 - En `Presentaciones/` se almacenan las láminas y material de defensa del proyecto ("Informatica boys").
 - Los integrantes del equipo deben depositar en su respectiva carpeta los documentos de diseño, reportes individuales y anexos correspondientes a cada hito evaluativo.
+
+### Documentos grupales por fase
+
+| Carpeta | Contenido principal |
+|---|---|
+| `fases/fase1/` | 1.4 Formativa Fase 1, 1.5 Definición del Proyecto, Presentación del Proyecto, SRS, Requisitos No Funcionales, Metodología Scrum, Product Vision, Product Backlog, Sprint Backlog, Definition of Done y Diagramas UML (modelo 4+1) |
+| `fases/fase2/` | 2.4 Desarrollo del Proyecto, 2.6 Informe Final, Informe Intermedio de Avance, Informe Técnico del modelo, Manual Técnico, Plan de Pruebas, Modelo de Datos, Retrospectivas, Innovación y evidencias de los mejores y peores casos |
+
+Los documentos en Word y PowerPoint incluyen además su versión en PDF para leerlos directamente en GitHub.
