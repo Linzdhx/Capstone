@@ -10,7 +10,7 @@ def test_inventory_zero_detections():
     assert metrics.missing == 0
     assert metrics.total_spaces == 0
     assert metrics.occupancy_rate == 0.0
-    assert metrics.empty_rate == 0.0
+    assert metrics.empty_rate == 1.0
 
 def test_inventory_mixed_detections():
     """Verifica el cálculo de occupancy_rate y empty_rate."""

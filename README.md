@@ -81,6 +81,12 @@ ModelManager (Hot-Swap to Production & Rollback to Archive)
 │   ├── images/             # Snapshots capturados en eventos de alerta
 │   └── logs/               # Registro continuo en JSONL (alerts.jsonl)
 │
+├── historica/              # Capturas de góndola con anomalías/faltantes y metadatos (.meta.json)
+├── docs_personal/          # Documentación académica y de avance del equipo por entregas
+│   ├── Entrega1/           # Avances Entrega 1 (Fernandez, Merino, Salvatierra, Yañez)
+│   ├── Entrega2/           # Avances Entrega 2 (Fernandez, Merino, Salvatierra, Yañez)
+│   └── Entrega3/           # Avances Entrega 3 (Fernandez, Merino, Salvatierra, Yañez)
+│
 ├── configs/
 │   └── app_config.yaml     # Configuración externa de la aplicación
 ├── Dockerfile              # Contenedor de producción
@@ -381,3 +387,126 @@ Cobertura de pruebas:
 - **Diagnóstico IA (Debug) en Dashboard:** Adición de un componente desplegable interactivo en las tarjetas de pasillo (`AisleCard.tsx`) que expone métricas en tiempo real (cajas crudas, cajas válidas tras aplicar filtros, porcentaje de ocupación, confianza promedio y array de confianzas) para facilitar la depuración visual.
 - **Refinamiento de Lógica de Detección:** Actualización del pipeline de filtrado de objetos (`incident_service.py`) implementando umbrales de confianza asimétricos y reglas morfológicas para distinguir correctamente entre una "góndola completamente vacía" (alerta crítica SIN_STOCK) y espacios vacíos regulares.
 - **Estabilidad en Windows:** Corrección en el arranque del servidor (`run.py`) para forzar la salida de stdout/stderr a UTF-8 y prevenir cuelgues (UnicodeEncodeError) al renderizar emojis o caracteres especiales en la consola de Windows.
+
+---
+
+## 18. Referencia Completa de la API REST y WebSockets
+
+El backend FastAPI expone una API REST modular, asíncrona y de alto rendimiento. Toda la especificación interactiva OpenAPI está disponible localmente en:
+- **Swagger UI:** `http://localhost:8000/docs`
+- **ReDoc:** `http://localhost:8000/redoc`
+
+### Resumen de Endpoints por Módulo
+
+#### Salud y Estado General
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/health` | Estado de salud del sistema, estado del servicio de cámara y versión activa del modelo YOLO. |
+
+#### Gestión de Cámaras y Streaming de Video
+| Método | Endpoint | Parámetros / Payload | Descripción |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/camera/list` | - | Lista todas las cámaras activas y detectadas con URLs de streaming MJPEG y metadatos. |
+| `POST` | `/api/camera/scan` | - | Fuerza un re-escaneo de puertos y hardware DirectShow en caliente. |
+| `GET` | `/api/camera/status` | - | Estado actual y métricas de la cámara principal. |
+| `POST` | `/api/camera/control` | `{"action": "start"\|"stop", "cam_id": "main"}` | Inicia o detiene la captura de una cámara específica. |
+| `POST` | `/api/camera/source` | `{"source_type": "...", "webcam_index": 0}` | Cambia la fuente de captura de la cámara principal. |
+| `POST` | `/api/camera/source/{cam_id}` | `{"source_type": "...", "rtsp_url": "..."}` | Cambia la fuente de captura para una cámara específica. |
+| `POST` | `/api/camera/add` | `{"name": "...", "source_type": "rtsp", ...}` | Agrega dinámicamente una nueva cámara (RTSP o sintética). |
+| `DELETE` | `/api/camera/{cam_id}` | Path param: `cam_id` | Elimina una cámara secundaria del pool activo. |
+| `GET` | `/api/camera/stream` | - | Transmisión continua MJPEG con bounding boxes para la cámara principal. |
+| `GET` | `/api/camera/stream/{cam_id}` | Path param: `cam_id` | Transmisión continua MJPEG independiente para la cámara solicitada. |
+
+#### Inventario y Región de Interés (ROI)
+| Método | Endpoint | Parámetros / Payload | Descripción |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/inventory/metrics` | - | Métricas instantáneas de inventario: productos, faltantes, ocupación % y vacío %. |
+| `GET` | `/api/inventory/roi` | - | Consulta las coordenadas del polígono/rectángulo de ROI configurado. |
+| `POST` | `/api/inventory/roi` | `{"points": [[x1, y1], ...]}` | Establece o limpia la zona de interés de inferencia. |
+
+#### Alertas y Snapshots
+| Método | Endpoint | Parámetros / Payload | Descripción |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/alerts/status` | - | Estado en tiempo real de la alerta, cooldown restante y tasa de vacío. |
+| `GET` | `/api/alerts/history` | - | Historial paginado de eventos de alerta registrados en `alerts.jsonl`. |
+| `GET` | `/api/alerts/snapshots/{filename}`| Path param: `filename` | Descarga el snapshot JPEG capturado durante un evento de alerta. |
+| `POST` | `/api/alerts/config` | `{"empty_threshold": 0.8, ...}` | Actualiza umbrales de alerta, tiempo consecutivo y cooldown en caliente. |
+
+#### Modelos y Gestión del Ciclo de Vida (Hot-Swap / Rollback)
+| Método | Endpoint | Parámetros / Payload | Descripción |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/models/` | - | Lista el árbol completo de modelos: versión en producción, candidatos y archivo. |
+| `GET` | `/api/models/active` | - | Retorna la versión activa, clases, metadatos y umbrales configurados. |
+| `POST` | `/api/models/thresholds` | `{"confidence": 0.25, "iou": 0.45}` | Modifica los umbrales de confianza e IoU de inferencia en tiempo de ejecución. |
+| `POST` | `/api/models/hot-swap` | `{"candidate_version": "v008"}` | Promueve un candidato a producción atómicamente sin reiniciar la aplicación. |
+| `POST` | `/api/models/rollback` | `{"target_version": "v001"}` | Restaura instantáneamente una versión anterior desde el archivo histórico. |
+
+#### Active Learning y Dataset (Human-in-the-Loop)
+| Método | Endpoint | Parámetros / Payload | Descripción |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/dataset/stats` | - | Conteo cuantitativo de muestras en `collected`, `pending_review`, `approved` y `validation`. |
+| `GET` | `/api/dataset/samples` | Query param: `stage` | Listado de muestras con metadatos y bounding boxes. |
+| `GET` | `/api/dataset/images/{stage}/{file}` | Path params: `stage`, `file` | Entrega el archivo de imagen de una muestra del dataset. |
+| `POST` | `/api/dataset/capture` | - | Captura manualmente un fotograma del stream para inspección supervisada. |
+| `POST` | `/api/dataset/review/{stage}/{id}` | `{"action": "approve"\|"reject", ...}` | Corrige clases de bounding boxes y transiciona muestras a `approved` o `rejected`. |
+
+#### Reentrenamiento Desacoplado
+| Método | Endpoint | Parámetros / Payload | Descripción |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/training/status` | - | Consulta el estado del worker de entrenamiento (idle, training, evaluating, error) y progreso. |
+| `POST` | `/api/training/start` | `{"epochs": 50, "batch_size": 16, ...}` | Desencadena un reentrenamiento en segundo plano sobre las muestras aprobadas. |
+
+#### Telemetría del Sistema y Recursos
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/system/metrics` | Métricas de uso de hardware: CPU %, núcleos lógicos, RAM en GB/%, GPU NVIDIA (VRAM reservada, asignada y total) y disco. |
+
+#### Gestión de Stock, Góndolas e Incidencias (`/api/stock`)
+| Método | Endpoint | Parámetros / Payload | Descripción |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/stock/upload` | Multipart form: `files` | Analiza imágenes con YOLOv8. Guarda en `/historica` solo aquellas con faltantes detectados; descarta imágenes sin fallas. |
+| `GET` | `/api/stock/uploads` | - | Historial en memoria de los lotes de imágenes analizados recientemente. |
+| `GET` | `/api/stock/dashboard` | - | Resumen consolidado del estado de stock, pasillos monitoreados y niveles de severidad. |
+| `GET` | `/api/stock/historica/image/{filename}` | Path param: `filename` | Descarga la imagen JPEG de una góndola registrada en `/historica`. |
+| `POST` | `/api/stock/historica/{filename}/alert` | Path param: `filename` | Emite o reenvía una alerta de reposición para el pasillo correspondiente. |
+| `POST` | `/api/stock/historica/{filename}/resolve` | Path param: `filename` | Marca la incidencia de la góndola como atendida/resuelta. |
+| `DELETE` | `/api/stock/historica/{filename}` | Path param: `filename` | Elimina la imagen de anomalía y sus metadatos de `/historica`. |
+| `GET` | `/api/locations` o `/api/stock/locations` | - | Lista de ubicaciones y estanterías físicas configuradas. |
+| `POST` | `/api/locations` o `/api/stock/locations` | `LocationCreate` | Crea o actualiza la definición de una ubicación de góndola. |
+| `GET` | `/api/locations/{location_id}` | Path param: `location_id` | Detalle de configuración y umbrales de una ubicación. |
+| `GET` | `/api/incidents` o `/api/stock/incidents` | - | Historial completo de incidencias activas, resueltas y archivadas. |
+| `POST` | `/api/incidents/{id}/alert` | Path param: `id` | Envía webhook / notificación para una incidencia específica. |
+
+#### Canales WebSocket en Tiempo Real
+| Canal | Protocolo | Frecuencia | Descripción |
+| :--- | :--- | :--- | :--- |
+| `/ws/telemetry` | WebSocket | ~5 - 10 Hz | Transmisión push continua para alimentar el Dashboard: FPS de cámara e inferencia, métricas de inventario, estado de alertas y snapshot de recursos de hardware. |
+| `/ws/image-analysis` | WebSocket | Por evento | Emite notificaciones push inmediatas cada vez que un lote de imágenes es procesado por el endpoint de carga `/api/stock/upload`. |
+
+---
+
+## 19. Estructura de Documentación Académica (`docs_personal`)
+
+La carpeta `docs_personal/` mantiene la trazabilidad, actas, informes de avance individual y entregables académicos del proyecto de título / Capstone:
+
+```text
+docs_personal/
+├── Entrega1/
+│   ├── Fernandez/       # Documentación individual y avances - Francisco Fernández
+│   ├── Merino/          # Documentación individual y avances - Francisco Merino
+│   ├── Salvatierra/     # Documentación individual y avances - Benjamín Salvatierra
+│   └── Yañez/           # Documentación individual y avances - Diego Yáñez
+├── Entrega2/
+│   ├── Fernandez/
+│   ├── Merino/
+│   ├── Salvatierra/
+│   └── Yañez/
+└── Entrega3/
+    ├── Fernandez/
+    ├── Merino/
+    ├── Salvatierra/
+    └── Yañez/
+```
+
+- Cada directorio cuenta con su respectivo archivo `.gitkeep` para garantizar el versionado de la estructura en Git.
+- Los integrantes del equipo deben depositar en su respectiva carpeta los documentos de diseño, reportes individuales y anexos correspondientes a cada hito evaluativo.
