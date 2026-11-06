@@ -56,7 +56,7 @@
 
 ## Sprint 5 — Integración, pruebas y validación
 
-- **Duración:** "6 semana", según el Plan de Trabajo de la Guía 1.5 [VERIFICAR si es duración o semana del calendario]
+- **Duración:** hasta el cierre del semestre.
 - **Objetivo:** probar el flujo completo y corregir falsas alarmas.
 - **Entregable (evidencia final):** demostración funcional e informe final.
 

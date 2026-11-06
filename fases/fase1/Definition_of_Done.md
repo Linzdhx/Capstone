@@ -12,7 +12,7 @@ Un ítem del Product Backlog se considera **terminado** cuando cumple todos los 
 - [ ] El código está organizado de forma modular en VS Code (RNF-09).
 - [ ] No hay claves ni credenciales en el código; se usan variables de entorno o secretos (RNF-05).
 - [ ] La documentación afectada está actualizada (README, ERS o el artefacto correspondiente).
-- [ ] Fue revisado por al menos otro integrante del equipo. [COMPLETAR: confirmar si el equipo adopta esta regla]
+- [ ] Fue revisado por al menos otro integrante del equipo.
 
 ## 2. Ítems de datos y modelo (Sprints 1 y 2)
 

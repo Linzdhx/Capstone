@@ -39,9 +39,10 @@ Detalle de tareas y responsables: ver `Sprint_Backlog.md`.
 
 | Rol Scrum | Integrante |
 |---|---|
-| Product Owner | Direcion de walmart op 
-| Scrum Master | Ceferino Anibal Sotelo 
+| Product Owner | Dirección de operaciones de Walmart Chile — define las necesidades del negocio, entregó la información para el proyecto y valida los avances. |
+| Scrum Master | Francisco Fernández — coordina las reuniones, vela por el cumplimiento de Scrum y ayuda a resolver bloqueos del equipo. |
 | Equipo de desarrollo | Francisco Fernández, David Yañez, David Salvatierra, Francisco Merino |
+| Docente guía (stakeholder) | Ceferino Anibal Sotelo — acompaña y evalúa el avance en las revisiones de cada fase. |
 
 ## 5. Eventos
 
@@ -50,8 +51,7 @@ Detalle de tareas y responsables: ver `Sprint_Backlog.md`.
 | Sprint Planning | Al inicio de cada sprint el equipo se reúne (presencial en la sede o por Discord) para revisar el objetivo del sprint según el `Sprint_Backlog.md`, dividirlo en tareas y repartirlas en conjunto, considerando los roles: IA / Data Engineer (Francisco Fernández, David Yañez) y Backend e Integración (Francisco Merino, David Salvatierra). |
 | Reuniones de seguimiento | 2 a 3 veces por semana, de forma presencial en la sede o por Discord. Cada integrante comenta qué avanzó, qué hará a continuación y si tiene algún bloqueo. La coordinación diaria se mantiene por el grupo de WhatsApp del equipo. |
 | Sprint Review | Al cierre de cada sprint se revisa el incremento con el docente en las reuniones de avance de la asignatura y, cuando es posible, con el cliente (por ejemplo, el semi-avance presentado a Walmart). |
-| Sprint Retrospective | Al cierre de cada sprint el equipo conversa qué funcionó, qué no y qué mejorar en el siguiente sprint.
-
+| Sprint Retrospective | Al cierre de cada sprint el equipo conversa qué funcionó, qué no y qué mejorar en el siguiente sprint. Los acuerdos se registran en `Retrospectivas.md`. |
 ### Herramientas de seguimiento
 
 | Herramienta | Uso |
