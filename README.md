@@ -1,515 +1,283 @@
-# CVW Inventory Monitor - YOLOv8 Supermarket Stock & Active Learning
+# CVW Inventory Monitor
 
-Sistema profesional, modular y de alto rendimiento para monitoreo automatizado de inventario en góndolas y estanterías de supermercados mediante visión computacional con **YOLOv8** (`product` y `missing`), análisis de tasa de ocupación/vacío, sistema de alertas persistente con cooldown, Active Learning con flujo Human-in-the-Loop, reentrenamiento desacoplado en segundo plano, evaluación automática y gestión de modelos con **Hot-Swap** y **Rollback**.
+**Computer Vision Walmart (CVW): detección y monitoreo de quiebres de stock en góndolas mediante detección de objetos.**
 
----
+Proyecto Capstone de Ingeniería en Informática, Duoc UC, desarrollado para Walmart Chile.
 
-## 1. Requisitos del Sistema
-
-- **Sistema Operativo:** Windows 10/11 o Linux (Ubuntu 20.04/22.04 LTS).
-- **Python:** 3.10 o superior (validado en Python 3.12 con aceleración CUDA).
-- **Node.js:** v18 o superior y npm (para compilación del frontend).
-- **Aceleración GPU (Opcional pero recomendada):** Tarjeta NVIDIA con soporte CUDA (ej: NVIDIA GeForce RTX 3060 Laptop GPU detectada y soportada). CPU fallback automático si no hay GPU presente.
-- **Docker y Docker Compose (Opcional):** Para despliegue contenerizado.
+> **Estado del documento:** avance intermedio, octubre de 2026. Las secciones marcadas como *pendiente* se completarán antes de la entrega final.
 
 ---
 
-## 2. Arquitectura del Proyecto
+## 1. Problema y objetivo
 
-El sistema aplica una estricta separación de responsabilidades:
+La falta de productos en góndola es una de las principales fuentes de venta perdida en el comercio masivo. Muchas veces el producto está en bodega, pero nadie detecta a tiempo que se agotó en la sala.
 
-```text
-Camera Service (Webcam / USB / RTSP / Synthetic)
-      ↓
-Detection Service (YOLOv8 Inference + ROI Filter + Timing HUD)
-      ↓
-Inventory Service (Products, Missing, Occupancy %, Empty %)
-      ↓
-Alert Service (80% Threshold, 3s Consecutive Window, 30s Cooldown, Snapshots)
+CVW busca automatizar esa inspección visual: analiza imágenes de góndolas con un modelo de visión por computador, calcula qué proporción del espacio está vacía y genera una alerta cuando una góndola cae a un nivel crítico de desabastecimiento. Lo hace sin sensores IoT ni básculas en los estantes.
+
+---
+
+## 2. Estrategia técnica
+
+**Detección de espacios vacíos (*void detection*).** En lugar de reconocer cada producto (miles de SKU distintos), el modelo distingue solo dos clases:
+
+| Clase | Significado |
+|---|---|
+| `missing` | Espacio vacío en la góndola |
+| `product` | Producto presente |
+
+Con el conteo de ambas clases se calcula la tasa de vacío de la góndola:
+
+```
+tasa de vacío = missing / (product + missing)
 ```
 
-Y el ciclo de mejora continua (Active Learning & Reentrenamiento):
+**Modelo YOLOv8.** Se usa la familia YOLOv8 de Ultralytics, que detecta objetos en una sola pasada de la red neuronal sobre imágenes de 640 × 640 píxeles.
 
-```text
-Collected Samples (Low Confidence / High Missing / Manual Trigger)
-      ↓
-Pending Review (Human Inspection & BBox Class Correction: product ↔ missing)
-      ↓
-Approved Dataset (YOLO normalized labels export)
-      ↓
-Training Worker (Background Subprocess / Thread - Non-blocking)
-      ↓
-Candidate Model Evaluation (mAP50, mAP50-95, Precision, Recall)
-      ↓
-ModelManager (Hot-Swap to Production & Rollback to Archive)
+- La primera versión usó **YOLOv8n (nano)**, con unos 3 millones de parámetros.
+- La versión actual usa **YOLOv8s (small)**, con unos 11 millones de parámetros. El cambio se hizo porque la versión nano se estancó en un mAP50-95 cercano a 0,38 en validación, y porque se espera incorporar más imágenes al dataset, que un modelo con más capacidad puede aprovechar mejor.
+
+---
+
+## 3. Justificación del enfoque
+
+- **Menos etiquetado.** Detectar dos clases requiere mucho menos trabajo de etiquetado que reconocer cada producto.
+- **Velocidad.** YOLO procesa cada imagen en una sola pasada; con YOLOv8s la inferencia toma entre 9 y 20 ms por imagen en una GPU Tesla T4.
+- **Cajas en vez de polígonos.** Se priorizó la detección con cajas delimitadoras sobre la segmentación por simplicidad y velocidad; las cajas bastan para calcular la tasa de vacío.
+- **Sin hardware adicional.** No requiere sensores ni básculas, que tienen costo y problemas de calibración.
+
+---
+
+## 4. Arquitectura y flujo
+
+El sistema es una aplicación web con un backend en Python (FastAPI) y un frontend en React. Cada imagen pasa por cuatro servicios:
+
+```
+Fuente de imágenes  (cámara web, cámara IP por RTSP o simulador)
+        ↓
+Servicio de detección  (modelo YOLOv8 + filtro de región de interés)
+        ↓
+Servicio de inventario  (conteo de product y missing, tasa de vacío)
+        ↓
+Servicio de alertas  (umbral, ventana de tiempo, cooldown, registro)
 ```
 
-### Estructura de Directorios
+| Servicio | Archivo | Función |
+|---|---|---|
+| Cámara | `backend/app/services/camera_service.py` | Obtiene las imágenes. Incluye un **simulador de góndola** para probar el sistema sin cámara |
+| Detección | `backend/app/services/detection_service.py` | Ejecuta el modelo y dibuja las cajas (verde: `product`, rojo: `missing`) |
+| Inventario | `backend/app/services/inventory_service.py` | Calcula la tasa de vacío, con protección contra división por cero |
+| Alertas | `backend/app/services/alert_service.py` | Decide cuándo alertar, guarda una captura y registra el evento |
 
-```text
+### Regla de alerta
+
+Se dispara una alerta cuando la tasa de vacío es **igual o mayor a 80 %** de forma sostenida durante **3 segundos**. Después de cada alerta hay un **cooldown de 30 segundos** para no repetir avisos. Un 80 % de vacío equivale a un 20 % de stock visible, el nivel crítico definido en el proyecto.
+
+Cada alerta guarda una imagen en `alerts/images/` y un registro en `alerts/logs/alerts.jsonl`. El código deja preparado el envío a un *webhook* externo.
+
+### Mejora continua del modelo
+
+El sistema incluye un ciclo de *active learning*:
+
+1. Guarda automáticamente las imágenes donde el modelo tiene baja confianza o detecta demasiado vacío.
+2. Una persona revisa y corrige esas imágenes desde la aplicación.
+3. Con las imágenes aprobadas se reentrena el modelo en segundo plano.
+4. El modelo nuevo se evalúa y, si cumple el criterio (mAP50 ≥ 0,80), puede reemplazar al actual sin detener el sistema. Si algo falla, se puede volver a la versión anterior.
+
+---
+
+## 5. Datos
+
+| Aspecto | Detalle |
+|---|---|
+| Fuente | Roboflow Universe, dataset "Empty Spaces in a Supermarket Hanger", versión 4 |
+| Tamaño | 349 imágenes de góndolas (la mayoría de 720 × 960 px) |
+| Etiquetado | 53.278 cajas: 51.862 `product` y 1.416 `missing` |
+| Densidad | En promedio, 149 productos y 4 espacios vacíos por imagen (máximo: 501 productos) |
+| Origen | Dataset público; no proviene de salas de Walmart |
+
+### Preparación
+
+| Partición | Imágenes originales | Cajas `missing` | Cajas `product` | Tratamiento |
+|---|---|---|---|---|
+| Train | 243 (69,6 %) | 994 | 35.978 | + 1.352 copias aumentadas = 1.595 imágenes |
+| Valid | 53 (15,2 %) | 211 | 7.463 | Imágenes limpias |
+| Test | 53 (15,2 %) | 211 | 8.421 | Imágenes limpias |
+| Valid_cam / Test_cam | 53 + 53 | 211 / 211 | 7.463 / 8.421 | Copias degradadas que simulan cámara: compresión, baja resolución, ruido, sombras y modo monocromo |
+
+- **Aumento de datos.** Solo en train: cambios de perspectiva, rotación, distorsión de lente y degradación de cámara. Las imágenes que contienen `missing` generan 6 copias y el resto 3, para compensar el desbalance.
+- **Fuga de datos mitigada.** Las imágenes casi idénticas se agrupan con *hashes* perceptuales antes de dividir el dataset, para que una misma góndola no quede a la vez en entrenamiento y en prueba. Se encontraron 339 grupos; el mayor tiene 2 imágenes.
+- **Partición equilibrada.** Entre 300 particiones posibles se eligió la que mejor respeta el 70/15/15 tanto en imágenes como en cajas `missing`.
+- **Reproducibilidad.** Las particiones, los aumentos y el entrenamiento usan una semilla fija (`SEED = 42`).
+
+### Desafíos detectados
+
+- **Desbalance de clases.** Hay unas 37 cajas `product` por cada caja `missing`.
+- **Objetos pequeños.** El 5,6 % de los productos mide menos de 8 píxeles a 640 px, por debajo del paso mínimo de la grilla de YOLO, y el 42,5 % mide menos de 16 píxeles.
+- **Un vacío no tiene forma propia.** Es solo el fondo de la góndola expuesto, lo que lo hace más difícil de detectar que un producto.
+
+---
+
+## 6. Resultados
+
+### YOLOv8s (versión actual)
+
+Entrenamiento: 100 épocas, 640 px, batch 16, en Google Colab con GPU Tesla T4 (46 minutos). Modelo resultante: `best.pt`, 22,5 MB.
+
+| Métrica | Valid | Valid cámara | **Test** | **Test cámara** |
+|---|---|---|---|---|
+| Precisión | 73,8 % | 69,2 % | 69,2 % | 63,5 % |
+| Recall | 64,2 % | 62,7 % | 62,9 % | 56,8 % |
+| mAP50 | 68,0 % | 63,7 % | **63,3 %** | **58,2 %** |
+| mAP50-95 | 37,5 % | 31,8 % | **33,6 %** | **28,1 %** |
+| `missing` mAP50 | 51,8 % | 49,7 % | 45,6 % | 43,8 % |
+| `missing` recall | 50,2 % | 52,8 % | 47,9 % | 43,7 % |
+| `product` mAP50 | 84,2 % | 77,8 % | 81,0 % | 72,7 % |
+| `product` recall | 78,1 % | 72,5 % | 77,9 % | 70,0 % |
+
+- **Test** (53 imágenes nunca vistas) es el resultado oficial; **test cámara** estima el rendimiento con una cámara de seguridad.
+- **Productos:** buen desempeño, con un mAP50 de 81,0 % (72,7 % con degradación).
+- **Espacios vacíos:** es la principal limitación; el modelo detecta cerca de la mitad de los huecos reales.
+- **Efecto de la calidad de imagen:** la degradación reduce el mAP50-95 en 0,055, una caída moderada que indica que la aumentación simulada cumple su función.
+- **Umbral de confianza recomendado:** 0,38, el que maximiza el F1 en validación (F1 = 0,688; `missing` 0,551; `product` 0,826).
+
+### Comparación con la versión anterior (YOLOv8n)
+
+| Versión | Dataset | Evaluación | mAP50 | mAP50-95 |
+|---|---|---|---|---|
+| v1 · YOLOv8n | Roboflow v3, ~200 imágenes | Validación, partición aleatoria | 72,8 % | 38,8 % |
+| v2 · YOLOv8s | Roboflow v4, 349 imágenes | Test, partición sin casi-duplicados | 63,3 % | 33,6 % |
+
+Las cifras **no son directamente comparables**: cambian el dataset, el conjunto de evaluación y la forma de dividir las imágenes. La evaluación de la v2 es más estricta, porque usa imágenes nunca vistas y evita que una misma góndola quede en entrenamiento y en prueba.
+
+### Experimento con SAM
+
+Se probó Segment Anything (SAM) para refinar el área de los espacios vacíos. Las máscaras no colapsaron (2 %) y se salen poco de la caja (10 %), pero cada imagen tarda unos 500 ms. El resultado es **no concluyente**: para decidir si mejora el área real se necesitan polígonos dibujados a mano en unas 20 imágenes.
+
+### Casos destacados
+
+*Pendiente:* análisis de los 10 mejores y 10 peores casos en test cámara.
+
+---
+
+## 7. Estructura del repositorio
+
+```
 ├── backend/
 │   ├── app/
-│   │   ├── api/            # Routers FastAPI (camera, inventory, alerts, models, dataset, training, system, ws)
-│   │   ├── core/           # Configuración unificada (config.py) y logging estructurado (logging.py)
-│   │   ├── ml/             # ModelManager (hot-swap, rollback, inferencia) y ModelEvaluator (métricas mAP)
-│   │   ├── services/       # CameraService, DetectionService, InventoryService, AlertService, DatasetService, TrainingWorker
-│   │   ├── schemas/        # Modelos de validación Pydantic (detections, inventory, alerts, models, dataset)
-│   │   └── main.py         # Aplicación principal FastAPI con CORS, WebSockets y montaje estático
-│   └── tests/              # Suite de pruebas unitarias e integración con Pytest
-│
-├── frontend/               # Aplicación React + TypeScript + TailwindCSS
-│   ├── src/
-│   │   ├── components/     # VideoPlayer, Navbar, StatusBadge, MetricCard, SystemMonitor, AlertBanner
-│   │   ├── pages/          # Dashboard, Camera, Alerts, DatasetReview, Training, Models, Settings
-│   │   ├── services/       # Clientes REST (api.ts) y WebSocket
-│   │   ├── hooks/          # useTelemetry (telemetría a 10 Hz)
-│   │   └── types/          # Definiciones de tipos TypeScript
-│   └── dist/               # Bundle optimizado servido por FastAPI
-│
+│   │   ├── api/        # Rutas de la API (cámara, inventario, alertas, modelos, dataset, entrenamiento)
+│   │   ├── core/       # Configuración y registro de eventos
+│   │   ├── ml/         # Carga, cambio y evaluación de modelos
+│   │   ├── services/   # Cámara, detección, inventario, alertas, dataset y reentrenamiento
+│   │   ├── schemas/    # Validación de datos
+│   │   └── main.py     # Aplicación principal
+│   └── tests/          # Pruebas automáticas (pytest)
+├── frontend/           # Aplicación web (React + TypeScript + TailwindCSS)
 ├── models/
-│   ├── production/         # Modelo activo en producción (best.pt + metadata.json)
-│   ├── candidates/         # Modelos generados tras reentrenamiento esperando activación
-│   └── archive/            # Historial de versiones anteriores para rollback instantáneo
-│
-├── data/
-│   ├── collected/          # Capturas automáticas por incertidumbre o reglas
-│   ├── pending_review/     # Muestras esperando verificación humana
-│   ├── approved/           # Muestras aprobadas con etiquetas YOLO (.txt)
-│   └── validation/         # Conjunto de validación para evaluación de candidatos
-│
-├── alerts/
-│   ├── images/             # Snapshots capturados en eventos de alerta
-│   └── logs/               # Registro continuo en JSONL (alerts.jsonl)
-│
-├── historica/              # Capturas de góndola con anomalías/faltantes y metadatos (.meta.json)
-├── fases/                  # Documentación académica y de avance del equipo por fases
-│   ├── fase1/              # Avances Fase 1 (Fernandez, Merino, Salvatierra, Yañez)
-│   ├── fase2/              # Avances Fase 2 (Fernandez, Merino, Salvatierra, Yañez)
-│   ├── fase3/              # Avances Fase 3 (Fernandez, Merino, Salvatierra, Yañez)
-│   └── Presentaciones/     # Diapositivas y material de exposición del equipo (PPTX y PDF)
-│
+│   ├── production/     # Modelo activo (best.pt + metadata.json)
+│   ├── candidates/     # Modelos reentrenados en espera de aprobación
+│   └── archive/        # Versiones anteriores
+├── data/               # Muestras recolectadas, en revisión y aprobadas
+├── alerts/             # Capturas y registro de alertas
 ├── configs/
-│   └── app_config.yaml     # Configuración externa de la aplicación
-├── Dockerfile              # Contenedor de producción
-├── docker-compose.yml      # Orquestación con soporte GPU y volúmenes
-├── requirements.txt        # Dependencias backend de Python
-├── .env.example            # Plantilla de variables de entorno
-└── .env                    # Configuración activa local
+│   └── app_config.yaml # Parámetros del sistema
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+└── run.py              # Punto de arranque
 ```
 
 ---
 
-## 3. Instalación
+## 8. Instalación y ejecución
 
-### Paso 1: Clonar o posicionarse en el proyecto
-```bash
-cd "d:\trabajo\Proyecto CVW v1\Modelo entrenado"
-```
+### Requisitos
 
-### Paso 2: Instalar dependencias backend de Python
+- Python 3.10 o superior
+- Node.js 18 o superior (para compilar el frontend)
+- Recomendado: GPU NVIDIA con CUDA. Sin GPU, el sistema funciona en CPU.
+
+### Pasos
+
 ```bash
+# 1. Descargar el proyecto
+git clone https://github.com/Linzdhx/Capstone.git
+cd Capstone
+
+# 2. Instalar dependencias de Python
 python -m pip install -r requirements.txt
-```
 
-### Paso 3: Compilar el frontend (React + TypeScript + TailwindCSS)
-```bash
+# 3. Compilar el frontend
 cd frontend
 npm install
 npm run build
 cd ..
-```
-*El comando `npm run build` genera la carpeta `frontend/dist`, la cual es servida automáticamente por el servidor backend FastAPI.*
 
----
-
-## 4. Configuración
-
-El sistema combina variables de entorno (`.env`) y configuración estructurada en `configs/app_config.yaml`.
-
-Crea tu archivo `.env` a partir de la plantilla:
-```bash
+# 4. Crear el archivo de configuración local
 cp .env.example .env
-```
 
-Variables disponibles:
-```env
-ENV=development
-DEBUG=true
-SERVER_HOST=0.0.0.0
-SERVER_PORT=8000
-
-# Cámara: 'webcam', 'usb', 'rtsp', 'synthetic'
-CAMERA_SOURCE_TYPE=webcam
-CAMERA_WEBCAM_INDEX=0
-CAMERA_RTSP_URL=
-
-# Modelos
-MODEL_CONFIDENCE=0.25
-MODEL_IOU=0.45
-MODEL_DEVICE=auto
-
-# Alertas
-ALERT_EMPTY_THRESHOLD=0.80
-ALERT_CONSECUTIVE_SECONDS=3.0
-ALERT_COOLDOWN_SECONDS=30.0
-ALERT_WEBHOOK_URL=
-```
-
----
-
-## 5. Ejecución Local
-
-### Método Rápido (Recomendado):
-```bash
+# 5. Iniciar el sistema
 python run.py
 ```
 
-### O mediante Uvicorn CLI:
-```bash
-uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-Abre en tu navegador:
-- **Aplicación Web:** [http://localhost:8000](http://localhost:8000)
-- **Documentación OpenAPI interactiva:** [http://localhost:8000/docs](http://localhost:8000/docs)
+Luego abrir en el navegador:
 
-### Opcional: Ejecutar Frontend en modo desarrollo (HMR / Vite):
-```bash
-cd frontend
-npm run dev
-```
-Disponible en: [http://localhost:5173](http://localhost:5173) (las llamadas a `/api` y `/ws` se redirigen transparentemente al puerto 8000).
+- Aplicación: http://localhost:8000
+- Documentación de la API: http://localhost:8000/docs
 
-### Cliente independiente para probar la recepción de imágenes
-Con el backend en ejecución, abre otra terminal y ejecuta:
-```bash
-python tools/image_sender_test.py
-```
-La ventana permite elegir una carpeta, configurar la URL base y el intervalo de revisión (1 segundo por defecto), e iniciar/detener el envío periódico. Cada imagen JPG, JPEG, PNG, WEBP o BMP directamente en esa carpeta (no subcarpetas) se envía una vez por ejecución cuando aparece y su escritura se ha estabilizado; los nuevos archivos se agrupan en un lote. Los archivos existentes se envían al iniciar la vigilancia. Si falla la comunicación, se reintenta en el próximo intervalo; si el servidor procesó la petición pero se perdió la respuesta, el reintento podría duplicar el análisis. Al reiniciar el cliente, se vuelve a revisar y enviar el contenido de la carpeta. Los resultados se acumulan en la ventana (hasta 500 filas). No requiere instalar paquetes adicionales. Para probar contra una instancia en otra máquina, reemplaza la URL por la dirección accesible de esa instancia.
+### Probar sin cámara
 
----
+En el archivo `.env`, usar `CAMERA_SOURCE_TYPE=synthetic`. El sistema genera una góndola simulada para probar detecciones, cálculo y alertas sin hardware.
 
-## 6. Ejecución con Docker / Docker Compose
-
-Para desplegar en contenedores con aceleración GPU:
+### Con Docker
 
 ```bash
 docker compose up --build -d
 ```
-El contenedor expondrá el servicio en el puerto `8000` con persistencia en `./models`, `./data`, `./alerts` y `./configs`.
 
----
-
-## 7. Sistema Multi-Cámara y Detección Automática en Vivo
-
-El sistema incorpora un gestor centralizado `CameraManager` y servicio desacoplado `CameraService` con soporte multi-fuente y visualización concurrente en tiempo real:
-
-1. **Detección Automática de Cámaras Físicas (Plug & Play):**
-   - Al iniciar la aplicación, el sistema sondea automáticamente los puertos y dispositivos de video disponibles (índices 0..3) en Windows mediante DirectShow (`cv2.CAP_DSHOW`).
-   - Resuelve automáticamente los nombres amigables de los dispositivos conectados desde el registro de Windows (`KSCATEGORY_CAPTURE`), por ejemplo: `HP TrueVision HD Camera` (cámara integrada) y `General Image Device` (webcam USB externa).
-   - Registra cada cámara física con una identidad única y persistente (`main`, `cam-2`, etc.) y arranca sus hilos de captura de forma inmediata e independiente.
-
-2. **Detección Dinámica en Caliente (Hotplug DSHOW-Safe):**
-   - Un hilo en segundo plano supervisa periódicamente (cada 8 segundos) la conexión de nuevas cámaras.
-   - **Prevención de colisiones en Windows:** El detector sondea *únicamente* los índices físicos que no están en uso por servicios activos, evitando bloqueos de recursos, excepciones de bajo nivel en OpenCV y reinicios innecesarios.
-
-3. **Transmisiones MJPEG Independientes y Bounding Boxes YOLOv8:**
-   - Cada cámara dispone de su propia URL de stream HTTP dedicada: `/api/camera/stream/main`, `/api/camera/stream/cam-2`, etc.
-   - Bucle de detección continuo orquestado por `DetectionService`: cada fotograma se procesa de forma individual para generar bounding boxes y telemetría por cámara sin clonar ni mezclar fuentes.
-   - **Tolerancia a fallos:** Si una cámara se desconecta o pierde señal, el sistema emite automáticamente un fotograma informativo (*placeholder*) estilizado indicando el estado de desconexión sin congelar la transmisión de las demás cámaras ni romper el elemento de video en el navegador.
-
-4. **Cámaras IP / RTSP y Simulador Sintético:**
-   - Permite añadir transmisiones RTSP seguras (`rtsp://usuario:clave@ip:puerto/stream`) o simuladores de góndola sintéticos desde la interfaz web o mediante la API REST (`POST /api/camera/add`).
-   - Las credenciales sensibles de cámaras IP se enmascaran automáticamente antes de reportarse a la telemetría y a la interfaz web.
-
----
-
-## 8. Colocación de `best.pt` y Metadatos
-
-El modelo principal de producción se encuentra en:
-```text
-models/production/best.pt
-models/production/metadata.json
-```
-
-Metadatos inspeccionados del modelo original:
-- **Clases:** `0`: `missing`, `1`: `product`.
-- **Dataset de origen:** Roboflow "Empty Spaces in a Supermarket Hanger" versión 3.
-- **Resolución nativa:** 640x640.
-
-**Regla crítica:** Nunca sobrescribas manualmente `models/production/best.pt`. Utiliza siempre el flujo de candidatos y Hot-Swap provisto por el sistema.
-
----
-
-## 9. Uso del Dashboard
-
-El Dashboard ofrece visibilidad completa en tiempo real:
-- **Recepción de imágenes externas:** el servidor emisor puede enviar una o varias fotos como campos multipart `files` a `POST /api/stock/upload`. El backend las analiza con YOLOv8 y devuelve un lote con resultado por archivo; el Dashboard muestra los nuevos lotes en vivo a través de `WS /ws/image-analysis`. `GET /api/stock/uploads` entrega el historial reciente (hasta 20 lotes, en memoria; se reinicia al reiniciar el backend). Ejemplo:
-  ```bash
-  curl -X POST "http://<HOST>:8000/api/stock/upload" \
-    -F "files=@foto1.jpg" \
-    -F "files=@foto2.jpg"
-  ```
-  Cada elemento de `results` informa si se detectaron faltantes, si el stock está correcto o si hubo un error de análisis. Las imágenes con faltantes siguen alimentando `/historica`; las correctas no se almacenan allí.
-- **Tarjetas KPI:** Conteo de productos, conteo de faltantes, total de espacios, tasa de ocupación (%) y tasa de vacío (%).
-- **Visor de Cámara en Vivo:** Stream MJPEG optimizado con bounding boxes renderizados en backend (Verde para `product`, Rojo/Coral para `missing`) y HUD de telemetría.
-- **Panel de Inferencia:** FPS de inferencia en tiempo real y desglose de tiempos: *Preprocess*, *Inferencia PyTorch* y *Postprocess (NMS)*.
-- **Hardware Monitor:** Monitoreo continuo de uso de CPU, núcleos lógicos, memoria RAM en GB y tarjeta NVIDIA GPU (RTX 3060) con VRAM asignada, reservada y total mediante `torch.cuda`.
-
----
-
-## 10. Sistema de Alertas
-
-Regla de disparo de alerta:
-$$\text{empty\_rate} = \frac{\text{missing}}{\text{products} + \text{missing}} \ge 0.80$$
-
-Características clave:
-1. **Filtro temporal contra falsos positivos:** La condición debe persistir durante al menos `consecutive_seconds` (por defecto 3.0 segundos). No se dispara por un único fotograma.
-2. **Protección contra división por cero:** Si $\text{total\_spaces} = 0$, no se calcula tasa ni se genera alerta.
-3. **Cooldown de seguridad:** Tras disparar una alerta, entra en un periodo de enfriamiento de `cooldown_seconds` (por defecto 30.0 segundos) para evitar inundación de avisos.
-4. **Persistencia de Snapshots:** Al activarse, guarda automáticamente una imagen de alta resolución en `alerts/images/alert_{id}_{timestamp}.jpg`.
-5. **Registro JSONL:** El evento queda registrado en `alerts/logs/alerts.jsonl` con métricas, conteos y ruta del snapshot.
-6. **Modal en Frontend:** Visualizador con zoom para inspeccionar los snapshots registrados en cualquier momento.
-
----
-
-## 11. Active Learning & Human-in-the-Loop (HITL)
-
-El sistema evita explícitamente convertir predicciones no supervisadas en ground truth:
-
-1. **Auto-Recolección:** Se guardan fotogramas automáticamente en `data/collected/` cuando:
-   - La confianza de alguna detección es menor a `low_confidence_threshold` (0.40).
-   - La tasa de faltantes es inusualmente alta (> 0.70).
-   - El operador presiona el botón **"Capturar Muestra"** en la interfaz.
-2. **Revisión Humana:** En la pestaña **Active Learning**, el supervisor puede:
-   - Inspeccionar cada imagen capturada y sus bounding boxes propuestos.
-   - Alternar la clase de cualquier caja con un solo clic (`product` ↔ `missing`).
-   - Descartar muestras ruidosas (`rejected`).
-   - **Aprobar muestra (`approved`):** Genera automáticamente el archivo de etiquetas normalizado en formato YOLO (`.txt`), listo para el entrenamiento.
-
----
-
-## 12. Reentrenamiento Desacoplado (Training Worker)
-
-El reentrenamiento se ejecuta como un **proceso en segundo plano independiente**, asegurando que la cámara y la inferencia continúen funcionando sin caídas de FPS.
-
-1. **Requisitos:** Requiere al menos 5 muestras aprobadas en `data/approved/`.
-2. **Estructuración:** El worker genera un workspace estructurado con split 80% train / 20% val y su correspondiente `data.yaml`.
-3. **Fine-Tuning:** Ejecuta ajuste fino de YOLOv8 a partir del modelo de producción activo, permitiendo configurar:
-   - `epochs` (ej: 50)
-   - `batch_size` (ej: 16)
-   - `imgsz` (ej: 640)
-   - `lr0` (ej: 0.01)
-4. **Candidato:** Guarda los pesos resultantes en `models/candidates/vXXX/best.pt`.
-
----
-
-## 13. Evaluación de Modelos y Hot-Swap
-
-Antes de que un candidato pueda usarse en producción:
-
-1. **Evaluación:** El evaluador calcula métricas automáticas sobre el conjunto de validación:
-   - $mAP_{50}$
-   - $mAP_{50-95}$
-   - $Precision$
-   - $Recall$
-2. **Criterio de Aprobación:** Compara el resultado frente al umbral configurado ($mAP_{50} \ge 0.80$).
-3. **Hot-Swap:** Al presionar **"Promover a Producción"**:
-   - Archiva la versión actual en `models/archive/vXXX/`.
-   - Copia el candidato a `models/production/best.pt`.
-   - Actualiza `metadata.json`.
-   - Recarga atómicamente la instancia YOLO en memoria sin reiniciar el servidor ni detener la captura de la cámara.
-
----
-
-## 14. Rollback Instantáneo
-
-Si una versión recién activada en producción no presenta el comportamiento esperado en tienda:
-- En la pestaña **Modelos**, busca en la lista de **Versiones Archivadas**.
-- Haz clic en **"Restaurar (Rollback)"**.
-- El `ModelManager` respaldará la versión descartada y restaurará la versión histórica seleccionada en milisegundos sin tiempo de inactividad.
-
----
-
-## 15. Tests Automatizados
-
-La suite de pruebas con `pytest` valida exhaustivamente las reglas de negocio y los servicios críticos:
+### Pruebas automáticas
 
 ```bash
 python -m pytest backend/tests -v
 ```
 
-Cobertura de pruebas:
-- `test_inventory_zero_detections`: Protección contra división por cero cuando no hay detecciones.
-- `test_inventory_mixed_detections`: Verificación de tasas exactas de ocupación y vacíos.
-- `test_inventory_80_percent_empty`: Activación matemática del umbral de faltantes del 80%.
-- `test_inventory_roi_filtering`: Filtrado geométrico de cajas dentro y fuera de la Región de Interés.
-- `test_alert_not_triggered_on_single_frame`: Garantía de que un único frame no dispara la alerta.
-- `test_alert_triggered_after_consecutive_seconds`: Disparo correcto tras cumplirse la ventana temporal.
-- `test_alert_cooldown_prevents_spam`: Verificación del bloqueo de nuevas alertas durante el cooldown.
-- `test_alert_ignores_zero_spaces`: Prevención de falsas alertas cuando la estantería no tiene espacios.
-- `test_model_manager_classes_and_info`: Inspección de clases `product` y `missing` en `best.pt`.
-- `test_model_manager_threshold_update`: Modificación en caliente de confidence e IoU.
-- `test_model_manager_list_versions`: Descubrimiento de producción, candidatos y archivo.
-- `test_dataset_capture_and_transition`: Ciclo de vida de muestras y generación de etiquetas YOLO `.txt`.
+Las 12 pruebas verifican el cálculo de inventario (incluido el caso sin detecciones), el filtro de región de interés, la ventana de 3 segundos, el cooldown, la gestión de modelos y el ciclo de vida de las muestras.
 
 ---
 
-## 16. Troubleshooting y Solución de Problemas
+## 9. Parámetros principales
 
-1. **¿Qué sucede si no tengo una cámara física conectada?**
-   - En la página **Cámara** o en `.env`, selecciona la fuente `synthetic`. La aplicación activará automáticamente el simulador de estantería para que puedas probar todas las funciones, alertas y capturas sin hardware físico.
-2. **Error de CUDA o memoria de GPU:**
-   - La aplicación detecta automáticamente la disponibilidad de CUDA. Si la VRAM no es suficiente o no hay drivers NVIDIA instalados, el `ModelManager` conmuta de forma transparente a ejecución en `cpu`.
-3. **La alerta no se dispara al superar el 80%:**
-   - Verifica que la condición persista durante los 3 segundos configurados de forma continua y que no se encuentre en periodo de cooldown (observa el contador de cooldown en la tarjeta del Dashboard o Alertas).
-4. **El reentrenamiento no inicia:**
-   - Asegúrate de haber aprobado al menos 5 imágenes en la pestaña **Active Learning** (`data/approved/`).
+Se ajustan en `configs/app_config.yaml` o en `.env`:
 
----
-
-## 17. Actualizaciones Recientes (Mejoras Multi-Cámara, UI y Lógica)
-
-- **Detección Automática y Gestión Multi-Cámara Real:**
-  Implementación de descubrimiento automático de cámaras físicas disponibles mediante escaneo de DirectShow y resolución de nombres reales desde el Registro de Windows (`HP TrueVision HD Camera`, `General Image Device`, etc.). El sistema inicializa todos los dispositivos disponibles en hilos independientes sin forzar al usuario a configurarlos manualmente.
-- **Corrección Definitiva de Duplicación de Video:**
-  Eliminación de la causa raíz donde al agregar o visualizar una segunda cámara se clonaba la transmisión de la primera. Cada cámara cuenta con un identificador persistente e invariable (`main`, `cam-2`), una configuración aislada y un endpoint MJPEG exclusivo (`/api/camera/stream/{cam_id}`).
-- **Rediseño UX/UI de «Cámaras en Vivo»:**
-  - Depuración completa de la interfaz: eliminación de botones técnicos de prueba confusos ("0 Cámaras", "1 Cámara (2 Paneles)", "2 Cámaras", etc.) y campos numéricos de bajo nivel.
-  - Grid dinámico y adaptativo que renderiza de 1 a N cámaras con sus nombres descriptivos, resolución nativa (1280x720) y tasa de fotogramas en tiempo real (~30 FPS).
-  - Badges de estado intuitivos con indicadores luminosos: **«En vivo»** (verde pulsante), **«Conectando cámara…»** (amarillo) y **«Cámara desconectada»** (rojo).
-  - Modal secundario elegante para añadir cámaras IP / RTSP o simuladores de góndola sin afectar el flujo de webcams USB.
-  - Acordeón colapsable para configuración de umbrales YOLOv8 (Confidence, IoU) y Zona de Interés (ROI).
-- **Prevención de Conflictos DirectShow en Windows (DSHOW-Safe):**
-  Optimización del hilo de hotplug para verificar exclusivamente índices de cámara libres, evitando colisiones de acceso exclusivo en Windows, excepciones de bajo nivel en OpenCV y desconexiones intermitentes.
-- **Tolerancia a Desconexión y Fotogramas Placeholder:**
-  Si una cámara pierde señal o se desconecta físicamente, el sistema emite un fotograma oscuro informativo (*placeholder*) personalizado con el nombre del dispositivo, evitando que el reproductor web falle o muestre errores de conexión rota.
-- **Prevención de Caché Estática en Servidor (`NoCacheStaticFiles`):**
-  Configuración de encabezados HTTP `no-cache, no-store, must-revalidate` en el montaje estático de FastAPI para asegurar que los navegadores siempre reciban la última versión compilada del frontend React.
-- **Diagnóstico IA (Debug) en Dashboard:** Adición de un componente desplegable interactivo en las tarjetas de pasillo (`AisleCard.tsx`) que expone métricas en tiempo real (cajas crudas, cajas válidas tras aplicar filtros, porcentaje de ocupación, confianza promedio y array de confianzas) para facilitar la depuración visual.
-- **Refinamiento de Lógica de Detección:** Actualización del pipeline de filtrado de objetos (`incident_service.py`) implementando umbrales de confianza asimétricos y reglas morfológicas para distinguir correctamente entre una "góndola completamente vacía" (alerta crítica SIN_STOCK) y espacios vacíos regulares.
-- **Estabilidad en Windows:** Corrección en el arranque del servidor (`run.py`) para forzar la salida de stdout/stderr a UTF-8 y prevenir cuelgues (UnicodeEncodeError) al renderizar emojis o caracteres especiales en la consola de Windows.
+| Parámetro | Valor por defecto | Descripción |
+|---|---|---|
+| `empty_threshold` | 0,80 | Tasa de vacío que activa la alerta |
+| `consecutive_seconds` | 3,0 | Segundos que debe mantenerse la condición |
+| `cooldown_seconds` | 30,0 | Espera mínima entre alertas |
+| `default_confidence` | 0,25 | Confianza mínima de una detección |
+| `default_iou` | 0,45 | Umbral para eliminar cajas duplicadas |
+| `source_type` | webcam | Fuente: `webcam`, `usb`, `rtsp` o `synthetic` |
 
 ---
 
-## 18. Referencia Completa de la API REST y WebSockets
+## 10. Estado actual y próximos pasos
 
-El backend FastAPI expone una API REST modular, asíncrona y de alto rendimiento. Toda la especificación interactiva OpenAPI está disponible localmente en:
-- **Swagger UI:** `http://localhost:8000/docs`
-- **ReDoc:** `http://localhost:8000/redoc`
+### Pendientes del avance
 
-### Resumen de Endpoints por Módulo
+- Subir al repositorio los pesos de YOLOv8s (`best.pt`, 22,5 MB); el `best.pt` actual del repositorio corresponde a YOLOv8n.
+- Subir el notebook de entrenamiento v2, para que las particiones y el entrenamiento sean reproducibles.
+- Completar el análisis de los 10 mejores y 10 peores casos.
 
-#### Salud y Estado General
-| Método | Endpoint | Descripción |
-| :--- | :--- | :--- |
-| `GET` | `/api/health` | Estado de salud del sistema, estado del servicio de cámara y versión activa del modelo YOLO. |
+### Mejoras propuestas
 
-#### Gestión de Cámaras y Streaming de Video
-| Método | Endpoint | Parámetros / Payload | Descripción |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/camera/list` | - | Lista todas las cámaras activas y detectadas con URLs de streaming MJPEG y metadatos. |
-| `POST` | `/api/camera/scan` | - | Fuerza un re-escaneo de puertos y hardware DirectShow en caliente. |
-| `GET` | `/api/camera/status` | - | Estado actual y métricas de la cámara principal. |
-| `POST` | `/api/camera/control` | `{"action": "start"\|"stop", "cam_id": "main"}` | Inicia o detiene la captura de una cámara específica. |
-| `POST` | `/api/camera/source` | `{"source_type": "...", "webcam_index": 0}` | Cambia la fuente de captura de la cámara principal. |
-| `POST` | `/api/camera/source/{cam_id}` | `{"source_type": "...", "rtsp_url": "..."}` | Cambia la fuente de captura para una cámara específica. |
-| `POST` | `/api/camera/add` | `{"name": "...", "source_type": "rtsp", ...}` | Agrega dinámicamente una nueva cámara (RTSP o sintética). |
-| `DELETE` | `/api/camera/{cam_id}` | Path param: `cam_id` | Elimina una cámara secundaria del pool activo. |
-| `GET` | `/api/camera/stream` | - | Transmisión continua MJPEG con bounding boxes para la cámara principal. |
-| `GET` | `/api/camera/stream/{cam_id}` | Path param: `cam_id` | Transmisión continua MJPEG independiente para la cámara solicitada. |
-
-#### Inventario y Región de Interés (ROI)
-| Método | Endpoint | Parámetros / Payload | Descripción |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/inventory/metrics` | - | Métricas instantáneas de inventario: productos, faltantes, ocupación % y vacío %. |
-| `GET` | `/api/inventory/roi` | - | Consulta las coordenadas del polígono/rectángulo de ROI configurado. |
-| `POST` | `/api/inventory/roi` | `{"points": [[x1, y1], ...]}` | Establece o limpia la zona de interés de inferencia. |
-
-#### Alertas y Snapshots
-| Método | Endpoint | Parámetros / Payload | Descripción |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/alerts/status` | - | Estado en tiempo real de la alerta, cooldown restante y tasa de vacío. |
-| `GET` | `/api/alerts/history` | - | Historial paginado de eventos de alerta registrados en `alerts.jsonl`. |
-| `GET` | `/api/alerts/snapshots/{filename}`| Path param: `filename` | Descarga el snapshot JPEG capturado durante un evento de alerta. |
-| `POST` | `/api/alerts/config` | `{"empty_threshold": 0.8, ...}` | Actualiza umbrales de alerta, tiempo consecutivo y cooldown en caliente. |
-
-#### Modelos y Gestión del Ciclo de Vida (Hot-Swap / Rollback)
-| Método | Endpoint | Parámetros / Payload | Descripción |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/models/` | - | Lista el árbol completo de modelos: versión en producción, candidatos y archivo. |
-| `GET` | `/api/models/active` | - | Retorna la versión activa, clases, metadatos y umbrales configurados. |
-| `POST` | `/api/models/thresholds` | `{"confidence": 0.25, "iou": 0.45}` | Modifica los umbrales de confianza e IoU de inferencia en tiempo de ejecución. |
-| `POST` | `/api/models/hot-swap` | `{"candidate_version": "v008"}` | Promueve un candidato a producción atómicamente sin reiniciar la aplicación. |
-| `POST` | `/api/models/rollback` | `{"target_version": "v001"}` | Restaura instantáneamente una versión anterior desde el archivo histórico. |
-
-#### Active Learning y Dataset (Human-in-the-Loop)
-| Método | Endpoint | Parámetros / Payload | Descripción |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/dataset/stats` | - | Conteo cuantitativo de muestras en `collected`, `pending_review`, `approved` y `validation`. |
-| `GET` | `/api/dataset/samples` | Query param: `stage` | Listado de muestras con metadatos y bounding boxes. |
-| `GET` | `/api/dataset/images/{stage}/{file}` | Path params: `stage`, `file` | Entrega el archivo de imagen de una muestra del dataset. |
-| `POST` | `/api/dataset/capture` | - | Captura manualmente un fotograma del stream para inspección supervisada. |
-| `POST` | `/api/dataset/review/{stage}/{id}` | `{"action": "approve"\|"reject", ...}` | Corrige clases de bounding boxes y transiciona muestras a `approved` o `rejected`. |
-
-#### Reentrenamiento Desacoplado
-| Método | Endpoint | Parámetros / Payload | Descripción |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/training/status` | - | Consulta el estado del worker de entrenamiento (idle, training, evaluating, error) y progreso. |
-| `POST` | `/api/training/start` | `{"epochs": 50, "batch_size": 16, ...}` | Desencadena un reentrenamiento en segundo plano sobre las muestras aprobadas. |
-
-#### Telemetría del Sistema y Recursos
-| Método | Endpoint | Descripción |
-| :--- | :--- | :--- |
-| `GET` | `/api/system/metrics` | Métricas de uso de hardware: CPU %, núcleos lógicos, RAM en GB/%, GPU NVIDIA (VRAM reservada, asignada y total) y disco. |
-
-#### Gestión de Stock, Góndolas e Incidencias (`/api/stock`)
-| Método | Endpoint | Parámetros / Payload | Descripción |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/stock/upload` | Multipart form: `files` | Analiza imágenes con YOLOv8. Guarda en `/historica` solo aquellas con faltantes detectados; descarta imágenes sin fallas. |
-| `GET` | `/api/stock/uploads` | - | Historial en memoria de los lotes de imágenes analizados recientemente. |
-| `GET` | `/api/stock/dashboard` | - | Resumen consolidado del estado de stock, pasillos monitoreados y niveles de severidad. |
-| `GET` | `/api/stock/historica/image/{filename}` | Path param: `filename` | Descarga la imagen JPEG de una góndola registrada en `/historica`. |
-| `POST` | `/api/stock/historica/{filename}/alert` | Path param: `filename` | Emite o reenvía una alerta de reposición para el pasillo correspondiente. |
-| `POST` | `/api/stock/historica/{filename}/resolve` | Path param: `filename` | Marca la incidencia de la góndola como atendida/resuelta. |
-| `DELETE` | `/api/stock/historica/{filename}` | Path param: `filename` | Elimina la imagen de anomalía y sus metadatos de `/historica`. |
-| `GET` | `/api/locations` o `/api/stock/locations` | - | Lista de ubicaciones y estanterías físicas configuradas. |
-| `POST` | `/api/locations` o `/api/stock/locations` | `LocationCreate` | Crea o actualiza la definición de una ubicación de góndola. |
-| `GET` | `/api/locations/{location_id}` | Path param: `location_id` | Detalle de configuración y umbrales de una ubicación. |
-| `GET` | `/api/incidents` o `/api/stock/incidents` | - | Historial completo de incidencias activas, resueltas y archivadas. |
-| `POST` | `/api/incidents/{id}/alert` | Path param: `id` | Envía webhook / notificación para una incidencia específica. |
-
-#### Canales WebSocket en Tiempo Real
-| Canal | Protocolo | Frecuencia | Descripción |
-| :--- | :--- | :--- | :--- |
-| `/ws/telemetry` | WebSocket | ~5 - 10 Hz | Transmisión push continua para alimentar el Dashboard: FPS de cámara e inferencia, métricas de inventario, estado de alertas y snapshot de recursos de hardware. |
-| `/ws/image-analysis` | WebSocket | Por evento | Emite notificaciones push inmediatas cada vez que un lote de imágenes es procesado por el endpoint de carga `/api/stock/upload`. |
+| Acción | Descripción | Impacto esperado |
+|---|---|---|
+| Aumentar la resolución | Pasar de 640 a 800 o 960 píxeles | Detectar productos menores a 8 px |
+| SAHI | Analizar la imagen por recortes superpuestos | Mejor detección en estantes densos |
+| Validar SAM | Dibujar polígonos en ~20 imágenes y comparar el área con la caja | Decidir si SAM justifica sus ~500 ms por imagen |
+| Más imágenes | Ampliar el dataset, idealmente con imágenes reales de sala | Mejor generalización |
 
 ---
 
-## 19. Estructura de Documentación Académica (`fases`)
+## Equipo
 
-La carpeta `fases/` mantiene la trazabilidad, actas, informes de avance individual y entregables académicos del proyecto de título / Capstone:
-
-```text
-fases/
-├── fase1/
-│   ├── Fernandez/       # Documentación individual y avances - Francisco Fernández
-│   ├── Merino/          # Documentación individual y avances - Francisco Merino
-│   ├── Salvatierra/     # Documentación individual y avances - David Salvatierra
-│   └── Yañez/           # Documentación individual y avances - David Yáñez
-├── fase2/
-│   ├── Fernandez/
-│   ├── Merino/
-│   ├── Salvatierra/
-│   └── Yañez/
-├── fase3/
-│   ├── Fernandez/
-│   ├── Merino/
-│   ├── Salvatierra/
-│   └── Yañez/
-└── Presentaciones/      # Diapositivas y material de exposición ("Informatica boys" en formatos .pptx y .pdf)
-```
-
-- Cada directorio cuenta con su respectivo archivo `.gitkeep` para garantizar el versionado de la estructura en Git.
-- En `Presentaciones/` se almacenan las láminas y material de defensa del proyecto ("Informatica boys").
-- Los integrantes del equipo deben depositar en su respectiva carpeta los documentos de diseño, reportes individuales y anexos correspondientes a cada hito evaluativo.
+David Salvatierra · David Yáñez · Francisco Fernández · Francisco Merino
