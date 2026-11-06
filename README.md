@@ -85,7 +85,8 @@ ModelManager (Hot-Swap to Production & Rollback to Archive)
 ├── docs_personal/          # Documentación académica y de avance del equipo por entregas
 │   ├── Entrega1/           # Avances Entrega 1 (Fernandez, Merino, Salvatierra, Yañez)
 │   ├── Entrega2/           # Avances Entrega 2 (Fernandez, Merino, Salvatierra, Yañez)
-│   └── Entrega3/           # Avances Entrega 3 (Fernandez, Merino, Salvatierra, Yañez)
+│   ├── Entrega3/           # Avances Entrega 3 (Fernandez, Merino, Salvatierra, Yañez)
+│   └── Presentaciones/     # Diapositivas y material de exposición del equipo (PPTX y PDF)
 │
 ├── configs/
 │   └── app_config.yaml     # Configuración externa de la aplicación
@@ -494,19 +495,21 @@ docs_personal/
 ├── Entrega1/
 │   ├── Fernandez/       # Documentación individual y avances - Francisco Fernández
 │   ├── Merino/          # Documentación individual y avances - Francisco Merino
-│   ├── Salvatierra/     # Documentación individual y avances - Benjamín Salvatierra
-│   └── Yañez/           # Documentación individual y avances - Diego Yáñez
+│   ├── Salvatierra/     # Documentación individual y avances - David Salvatierra
+│   └── Yañez/           # Documentación individual y avances - David Yáñez
 ├── Entrega2/
 │   ├── Fernandez/
 │   ├── Merino/
 │   ├── Salvatierra/
 │   └── Yañez/
-└── Entrega3/
-    ├── Fernandez/
-    ├── Merino/
-    ├── Salvatierra/
-    └── Yañez/
+├── Entrega3/
+│   ├── Fernandez/
+│   ├── Merino/
+│   ├── Salvatierra/
+│   └── Yañez/
+└── Presentaciones/      # Diapositivas y material de exposición ("Informatica boys" en formatos .pptx y .pdf)
 ```
 
 - Cada directorio cuenta con su respectivo archivo `.gitkeep` para garantizar el versionado de la estructura en Git.
+- En `Presentaciones/` se almacenan las láminas y material de defensa del proyecto ("Informatica boys").
 - Los integrantes del equipo deben depositar en su respectiva carpeta los documentos de diseño, reportes individuales y anexos correspondientes a cada hito evaluativo.
