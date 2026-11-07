@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard académico | YOLOv8s</title>
+<style>
+:root{--navy:#172d49;--blue:#356da8;--teal:#258780;--orange:#cc8537;--red:#ae4b46;--bg:#f3f6f9;--card:#fff;--ink:#2b394b;--muted:#6b7a8d;--line:#e4eaf0}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:var(--ink);line-height:1.48}
+header{background:var(--navy);color:#fff;padding:32px max(20px,calc((100% - 1200px)/2)) 28px;border-bottom:5px solid var(--teal)}
+header .eyebrow{font-size:11px;letter-spacing:.13em;font-weight:700;color:#a9d4d0}header h1{font-size:clamp(25px,4vw,38px);line-height:1.12;margin:10px 0}header p{max-width:900px;color:#d9e2ec;margin:0}
+main{max-width:1200px;margin:25px auto;padding:0 18px}.section{margin:28px 0 13px;color:var(--navy);font-size:19px}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:17px;box-shadow:0 4px 15px #1b355008;min-width:0}
+.kpi small{display:block;color:var(--muted);font-size:10px;font-weight:750;letter-spacing:.07em;text-transform:uppercase}.kpi strong{display:block;color:var(--navy);font-size:29px;margin:7px 0 0}.kpi span{font-size:12px;color:var(--muted)}
+.chart h3,.card h3{font-size:15px;margin:0 0 9px;color:var(--navy)}canvas{width:100%;height:275px;display:block}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}.tabs button,.selector button{background:#fff;border:1px solid #d5dee8;color:#34475d;padding:9px 14px;border-radius:7px;cursor:pointer;font:inherit;font-size:13px}.tabs button.active,.selector button.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.selector{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}.muted{color:var(--muted);font-size:12px}.note{border-left:4px solid var(--orange);background:#fff8ef;padding:13px 15px;border-radius:7px;font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:10px 9px;border-bottom:1px solid #edf1f5}th{color:var(--muted);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+.badge{display:inline-block;background:#edf4fb;color:#345f88;border-radius:20px;padding:4px 9px;font-size:10px;font-weight:750}.danger{color:var(--red);font-weight:700}
+footer{max-width:1200px;margin:28px auto 42px;padding:0 18px;color:var(--muted);font-size:11px}
+@media(max-width:850px){.grid{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}}
+@media(max-width:480px){.grid{grid-template-columns:1fr}main{padding:0 12px}}
+</style></head><body>
+<header><div class="eyebrow">PROYECTO DE TÍTULO · VISIÓN COMPUTACIONAL</div>
+<h1>Detección de espacios vacíos en góndolas</h1>
+<p>Evaluación académica del modelo YOLOv8s en imágenes limpias y degradadas para simular condiciones de cámaras de seguridad. Resultados obtenidos desde el notebook Colab v2.</p></header>
+<main>
+<h2 class="section">Resumen ejecutivo</h2>
+<div class="grid">
+<div class="card kpi"><small>mAP50 · test limpio</small><strong>63,3%</strong><span>53 imágenes · 8.632 instancias</span></div>
+<div class="card kpi"><small>mAP50 · test cámara</small><strong>58,2%</strong><span>Mismas 53 imágenes degradadas</span></div>
+<div class="card kpi"><small>mAP50-95 · test limpio</small><strong>33,6%</strong><span>Evaluación global</span></div>
+<div class="card kpi"><small>Confianza recomendada</small><strong>0,38</strong><span>Máximo F1 medio en validación</span></div>
+</div>
+
+<h2 class="section">1 · Comparación de conjuntos</h2>
+<div class="card chart"><h3>Métricas globales: validación y test</h3>
+<div class="selector"><button class="active" data-split="test">Test</button><button data-split="valid">Validación</button></div>
+<canvas id="globalChart"></canvas><p class="muted">P = precisión · R = recall · mAP50 y mAP50-95 expresados en porcentaje.</p></div>
+
+<h2 class="section">2 · Rendimiento por clase</h2>
+<div class="tabs"><button class="active" data-class="missing">missing · espacios vacíos</button><button data-class="product">product · productos</button></div>
+<div class="two">
+<div class="card chart"><h3>Precisión y recall</h3><canvas id="prChart"></canvas></div>
+<div class="card chart"><h3>mAP50 y mAP50-95</h3><canvas id="mapChart"></canvas></div>
+</div>
+<div class="card" style="margin-top:13px"><h3>Lectura por clase</h3><p id="classInsight">La clase missing obtiene 47,9% de recall en test limpio y 43,7% en test_cam. Es el principal desafío de detección.</p></div>
+
+<h2 class="section">3 · Efecto de la degradación</h2>
+<div class="two">
+<div class="card chart"><h3>Caída de métricas generales · test</h3><canvas id="dropChart"></canvas></div>
+<div class="card"><h3>Interpretación</h3>
+<p>Entre test limpio y test_cam, el mAP50-95 pasa de 33,6% a 28,1%: una diferencia de <b>5,5 puntos porcentuales</b>.</p>
+<p>Las caídas son: precisión −5,7 pp; recall −6,1 pp; mAP50 −5,1 pp; mAP50-95 −5,5 pp.</p>
+<div class="note">test_cam es una degradación sintética del conjunto de prueba. No reemplaza la validación con cámaras o videos reales.</div></div>
+</div>
+
+<h2 class="section">4 · Dataset y objetos pequeños</h2>
+<div class="grid">
+<div class="card kpi"><small>Imágenes originales</small><strong>349</strong><span>Reducidas a lado máximo 960 px</span></div>
+<div class="card kpi"><small>Cajas missing</small><strong>1.416</strong><span>Clase minoritaria</span></div>
+<div class="card kpi"><small>Cajas product</small><strong>51.862</strong><span>≈36,6 veces más que missing</span></div>
+<div class="card kpi"><small>Product bajo 8 px</small><strong>5,6%</strong><span>Lado menor a 640 px</span></div>
+</div>
+<div class="two" style="margin-top:13px">
+<div class="card chart"><h3>Distribución de cajas</h3><canvas id="boxesChart"></canvas><p class="muted">Conteos del dataset original.</p></div>
+<div class="card"><h3>Grid YOLOv8 a 640 px</h3>
+<table><thead><tr><th>Escala</th><th>Stride</th><th>Grid</th></tr></thead><tbody><tr><td>P3</td><td>8</td><td>80 × 80</td></tr><tr><td>P4</td><td>16</td><td>40 × 40</td></tr><tr><td>P5</td><td>32</td><td>20 × 20</td></tr></tbody></table>
+<p>El percentil 5 del lado menor de cajas product es 7,7 px; la mediana es 17,5 px. El notebook aclara que la capacidad del grid no es por sí sola el límite. Se propone experimentar con imgsz 800/960 o SAHI.</p></div></div>
+
+<h2 class="section">5 · Entrenamiento y umbral</h2>
+<div class="grid">
+<div class="card kpi"><small>Imágenes train final</small><strong>1.595</strong><span>243 originales + 1.352 aumentadas</span></div>
+<div class="card kpi"><small>Épocas configuradas</small><strong>100</strong><span>Batch 16 · seed 42</span></div>
+<div class="card kpi"><small>Parámetros</small><strong>11,14 M</strong><span>YOLOv8s</span></div>
+<div class="card kpi"><small>F1 medio validación</small><strong>0,688</strong><span>Con confianza 0,38</span></div>
+</div>
+
+<h2 class="section">6 · Experimento complementario SAM</h2>
+<div class="grid">
+<div class="card kpi"><small>Tiempo por imagen</small><strong>503 ms</strong><span>sam_b · GPU T4 · todas las cajas</span></div>
+<div class="card kpi"><small>Coverage mediana</small><strong>71,9%</strong><span>Test · test_cam 77,5%</span></div>
+<div class="card kpi"><small>Leak mediana</small><strong>9,7%</strong><span>Test · test_cam 9,0%</span></div>
+<div class="card kpi"><small>Máscaras colapsadas</small><strong>2%</strong><span>Criterio exploratorio</span></div>
+</div>
+<div class="card" style="margin-top:13px"><p><span class="badge">VEREDICTO: NO CONCLUYENTE</span></p>
+<p>No había polígonos de verdad terreno en GT_SEG_DIR. La Prueba A solo permite detectar fallas evidentes y no demuestra que SAM mejore la segmentación. El notebook recomienda anotar aproximadamente 20 polígonos y comparar IoU. 503 ms por imagen equivale a cerca de 2 imágenes/s en procesamiento secuencial.</p></div>
+
+<h2 class="section">7 · Análisis de errores y advertencias</h2>
+<div class="two">
+<div class="card"><h3>Casos extremos · test_cam</h3>
+<p>53 imágenes evaluadas por F1 por imagen, con emparejamiento IoU ≥ 0,5.</p>
+<p><b>Mejor puntaje:</b> 0,978 · imagen 57_jpg</p><p><b>Peor puntaje:</b> 0,165 · imagen 1421_jpg</p>
+<p>Se exportaron los 10 mejores y 10 peores casos para inspección visual. En varios de los peores, missing_F1 = 0.</p></div>
+<div class="card"><h3 class="danger">Advertencia max_det</h3>
+<p>Durante entrenamiento Ultralytics advirtió que max_det=500 y había imágenes con hasta 503 objetos en train. Esto podría truncar predicciones y afectar recall.</p>
+<p>Trabajo futuro: repetir la evaluación con max_det mayor y comparar resultados, manteniendo constantes los demás parámetros.</p></div>
+</div>
+
+<h2 class="section">8 · Tabla completa de métricas</h2>
+<div class="card"><table><thead><tr><th>Clase</th><th>Conjunto</th><th>Precisión</th><th>Recall</th><th>mAP50</th><th>mAP50-95</th></tr></thead><tbody id="metricTable"></tbody></table></div>
+
+<h2 class="section">Conclusión académica</h2>
+<div class="note">YOLOv8s logra un desempeño superior en la clase product respecto de missing. La degradación sintética disminuye las métricas globales, y la detección de espacios vacíos continúa siendo el principal desafío. El tamaño reducido del dataset, la naturaleza sintética de test_cam y la advertencia max_det deben declararse como limitaciones. La validación con cámaras reales es necesaria antes de afirmar viabilidad operacional.</div>
+</main>
+<footer>Fuente: Proyecto_CVW_modelo_v2 (2).ipynb · Valores transcritos de las salidas guardadas en el notebook. Dashboard autocontenido: no requiere conexión a bibliotecas externas.</footer>
+<script>
+const D={
+ test:{general:[[.692,.629,.633,.336],[.635,.568,.582,.281]],
+ missing:[[.570,.479,.456,.219],[.503,.437,.438,.202]],
+ product:[[.815,.779,.810,.453],[.767,.700,.727,.359]]},
+ valid:{general:[[.738,.642,.680,.375],[.692,.627,.637,.318]],
+ missing:[[.601,.502,.518,.273],[.570,.528,.497,.242]],
+ product:[[.874,.781,.842,.477],[.815,.725,.778,.393]]}
+};
+const colors={blue:'#356da8',teal:'#258780',orange:'#cc8537',red:'#ae4b46',grid:'#e7edf2',text:'#607086'};
+function bars(id,labels,series,max=1,percent=true){
+ const c=document.getElementById(id),ctx=c.getContext('2d'),w=c.clientWidth,h=c.clientHeight,dpr=window.devicePixelRatio||1;
+ c.width=w*dpr;c.height=h*dpr;ctx.scale(dpr,dpr);ctx.clearRect(0,0,w,h);
+ const L=45,R=12,T=18,B=48,pw=w-L-R,ph=h-T-B;
+ ctx.font='11px system-ui';ctx.textAlign='right';ctx.fillStyle=colors.text;ctx.strokeStyle=colors.grid;
+ for(let i=0;i<=4;i++){let v=max*i/4,y=T+ph-v/max*ph;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(w-R,y);ctx.stroke();ctx.fillText(percent?Math.round(v*100)+'%':Math.round(v).toLocaleString('es-CL'),L-7,y+4)}
+ const group=pw/labels.length,barW=Math.min(30,group/(series.length+1));
+ labels.forEach((lab,i)=>{ctx.textAlign='center';ctx.fillStyle=colors.text;ctx.font='10px system-ui';ctx.fillText(lab,L+group*(i+.5),h-25);
+ series.forEach((s,j)=>{const v=s.values[i],x=L+group*(i+.5)+(j-(series.length-1)/2)*(barW+5)-barW/2,hh=v/max*ph;ctx.fillStyle=s.color;ctx.fillRect(x,T+ph-hh,barW,hh);ctx.fillStyle=colors.text;ctx.font='9px system-ui';ctx.fillText(percent?(v*100).toFixed(1):v.toLocaleString('es-CL'),x+barW/2,T+ph-hh-5)})});
+ let lx=L;ctx.textAlign='left';series.forEach(s=>{ctx.fillStyle=s.color;ctx.fillRect(lx,h-9,9,9);ctx.fillStyle=colors.text;ctx.font='10px system-ui';ctx.fillText(s.name,lx+13,h);lx+=ctx.measureText(s.name).width+45});
+}
+let activeSplit='test',activeClass='missing';
+function renderGlobal(){const d=D[activeSplit].general;bars('globalChart',['Precisión','Recall','mAP50','mAP50-95'],[{name:activeSplit==='test'?'Test limpio':'Valid limpio',values:d[0],color:colors.blue},{name:activeSplit==='test'?'Test_cam':'Valid_cam',values:d[1],color:colors.orange}],.8)}
+function renderClass(){let d=D[activeSplit][activeClass];bars('prChart',['Precisión','Recall'],[{name:'Limpio',values:d[0].slice(0,2),color:colors.blue},{name:'Degradado',values:d[1].slice(0,2),color:colors.orange}],1);
+bars('mapChart',['mAP50','mAP50-95'],[{name:'Limpio',values:d[0].slice(2),color:colors.teal},{name:'Degradado',values:d[1].slice(2),color:colors.red}],1);
+document.getElementById('classInsight').textContent=activeClass==='missing'?'La clase missing obtiene 47,9% de recall en test limpio y 43,7% en test_cam. Es el principal desafío de detección.':'La clase product obtiene 77,9% de recall en test limpio y 70,0% en test_cam. Su rendimiento es superior al de missing.'}
+function renderAll(){renderGlobal();renderClass()}
+document.querySelectorAll('[data-split]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-split]').forEach(x=>x.classList.remove('active'));b.classList.add('active');activeSplit=b.dataset.split;renderAll()}));
+document.querySelectorAll('[data-class]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-class]').forEach(x=>x.classList.remove('active'));b.classList.add('active');activeClass=b.dataset.class;renderClass()}));
+bars('dropChart',['Precisión','Recall','mAP50','mAP50-95'],[{name:'Caída (pp)',values:[.057,.061,.051,.055],color:colors.red}],.08);
+bars('boxesChart',['missing','product'],[{name:'Cajas',values:[1416,51862],color:colors.teal}],60000,false);
+const tableRows=[
+['General','Test limpio',69.2,62.9,63.3,33.6],['General','Test_cam',63.5,56.8,58.2,28.1],
+['missing','Test limpio',57.0,47.9,45.6,21.9],['missing','Test_cam',50.3,43.7,43.8,20.2],
+['product','Test limpio',81.5,77.9,81.0,45.3],['product','Test_cam',76.7,70.0,72.7,35.9],
+['General','Valid',73.8,64.2,68.0,37.5],['General','Valid_cam',69.2,62.7,63.7,31.8],
+['missing','Valid',60.1,50.2,51.8,27.3],['missing','Valid_cam',57.0,52.8,49.7,24.2],
+['product','Valid',87.4,78.1,84.2,47.7],['product','Valid_cam',81.5,72.5,77.8,39.3]];
+document.getElementById('metricTable').innerHTML=tableRows.map(r=>'<tr>'+r.map((v,i)=>'<td>'+(i<2?v:Number(v).toFixed(1)+'%')+'</td>').join('')+'</tr>').join('');
+renderAll();
+window.addEventListener('resize',()=>{renderAll();bars('dropChart',['Precisión','Recall','mAP50','mAP50-95'],[{name:'Caída (pp)',values:[.057,.061,.051,.055],color:colors.red}],.08);bars('boxesChart',['missing','product'],[{name:'Cajas',values:[1416,51862],color:colors.teal}],60000,false)});
+</script></body></html>
