@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Reporte de Seguridad CVW</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>body{margin:0}
+/* Informe de auditoría: resumen arriba, herramientas en tarjetas, tabla de hallazgos con franja de severidad, plan de acción al final */
+:root{
+  --bg:#f2f4f7; --panel:#ffffff; --ink:#141c2b; --muted:#5a6476; --line:#d8dee8;
+  --accent:#2448a8; --accent-soft:#e5ecfa;
+  --ok:#1f8a4c; --ok-soft:#e2f3e9; --low:#5f6b7d; --low-soft:#eceff4;
+  --med:#b46f12; --med-soft:#fbefd9; --high:#c22d2d; --high-soft:#fbe3e3;
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e131b; --panel:#161d28; --ink:#e5eaf2; --muted:#9aa4b4; --line:#293343;
+  --accent:#86a8ff; --accent-soft:#1b2846;
+  --ok:#52c585; --ok-soft:#133323; --low:#a3adbd; --low-soft:#222a37;
+  --med:#e8a94c; --med-soft:#3a2b12; --high:#ff6f6f; --high-soft:#3e1919; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e131b; --panel:#161d28; --ink:#e5eaf2; --muted:#9aa4b4; --line:#293343;
+  --accent:#86a8ff; --accent-soft:#1b2846;
+  --ok:#52c585; --ok-soft:#133323; --low:#a3adbd; --low-soft:#222a37;
+  --med:#e8a94c; --med-soft:#3a2b12; --high:#ff6f6f; --high-soft:#3e1919; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.55}
+.wrap{max-width:1120px;margin:0 auto;padding-block:28px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:24px}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font-size:1.75rem;font-weight:700;letter-spacing:-.01em}
+h2{font-size:1.15rem;font-weight:600}
+h3{font-size:.98rem;font-weight:600}
+p{margin:0}
+.eyebrow{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;min-width:0}
+header{display:grid;gap:8px}
+.meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.84rem;color:var(--muted)}
+
+.verdict{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center}
+.ring{width:96px;height:96px}
+.ring text{font-family:var(--mono)}
+.tally{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+@media (max-width:640px){.tally{grid-template-columns:repeat(2,minmax(0,1fr))}.verdict{grid-template-columns:1fr}}
+.tile{border-radius:8px;padding:10px 12px;border:1px solid var(--line)}
+.tile b{display:block;font-family:var(--mono);font-size:1.5rem;line-height:1.1}
+.tile span{font-size:.8rem}
+.tile.ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.tile.high{background:var(--high-soft);border-color:var(--high);color:var(--high)}
+.tile.med{background:var(--med-soft);border-color:var(--med);color:var(--med)}
+.tile.low{background:var(--low-soft);border-color:var(--low);color:var(--low)}
+
+.tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.tool{display:grid;gap:8px;align-content:start}
+.tool .head{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.tool code{font-family:var(--mono);font-size:.95rem;font-weight:500}
+.tool .what{font-size:.86rem;color:var(--muted)}
+.tool .res{font-size:.9rem}
+.bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line)}
+.bar i{display:block;height:100%}
+.chip{font-family:var(--mono);font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.high{background:var(--high-soft);color:var(--high)}
+.chip.med{background:var(--med-soft);color:var(--med)}
+.chip.low{background:var(--low-soft);color:var(--low)}
+.chip.check{background:var(--accent-soft);color:var(--accent)}
+
+.filters{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.filters button{font:inherit;font-size:.82rem;font-weight:600;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:5px 12px}
+.filters button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.filters button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.findings{display:grid;gap:8px}
+.f{border:1px solid var(--line);border-left:5px solid var(--low);border-radius:8px;background:var(--panel)}
+.f.ok{border-left-color:var(--ok)}.f.high{border-left-color:var(--high)}.f.med{border-left-color:var(--med)}.f.check{border-left-color:var(--accent)}
+.f summary{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 14px;cursor:pointer;list-style:none}
+.f summary::-webkit-details-marker{display:none}
+.f .id{font-family:var(--mono);font-size:.8rem;color:var(--muted)}
+.f .body{padding:0 14px 12px 76px;font-size:.88rem;color:var(--muted);display:grid;gap:6px}
+@media (max-width:640px){.f .body{padding-left:14px}.f summary{grid-template-columns:44px minmax(0,1fr)}.f summary .chip{grid-column:2}}
+.f .body code{font-family:var(--mono);font-size:.82rem;color:var(--ink);background:var(--bg);padding:1px 5px;border-radius:4px;word-break:break-all}
+
+.tests{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+.t{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:.88rem}
+.t .ck{flex:none;width:20px;height:20px;border-radius:50%;background:var(--ok);color:var(--panel);display:grid;place-items:center;font-size:.75rem;font-weight:700}
+
+.plan{counter-reset:p;display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.plan li{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:8px}
+.plan li::before{counter-increment:p;content:counter(p);font-family:var(--mono);font-weight:600;color:var(--accent)}
+.plan small{display:block;color:var(--muted);font-size:.8rem}
+.files{font-size:.86rem;display:grid;gap:4px}
+.files code{font-family:var(--mono);font-size:.82rem}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Computer Vision Walmart · Fase 3 · Pruebas de seguridad</div>
+    <h1>Reporte de seguridad del sistema CVW</h1>
+    <div class="meta">
+      <span>Ejecutado: <span class="mono">18-11-2026</span></span>
+      <span>Rama: <span class="mono">main @ e957b1f</span></span>
+      <span>Responsable: David Salvatierra</span>
+      <span>Código analizado: <span class="mono">3.890</span> líneas Python</span>
+    </div>
+  </header>
+
+  <section class="panel" aria-labelledby="h-res">
+    <div class="verdict">
+      <svg class="ring" viewBox="0 0 96 96" role="img" aria-label="6 de 12 controles sin problemas">
+        <circle cx="48" cy="48" r="40" fill="none" stroke="var(--line)" stroke-width="10"></circle>
+        <circle cx="48" cy="48" r="40" fill="none" stroke="var(--ok)" stroke-width="10" stroke-dasharray="125.7 251.3" transform="rotate(-90 48 48)"></circle>
+        <text x="48" y="46" text-anchor="middle" font-size="20" font-weight="600" fill="var(--ink)">6/12</text>
+        <text x="48" y="62" text-anchor="middle" font-size="9" fill="var(--muted)">sin problemas</text>
+      </svg>
+      <div>
+        <h2 id="h-res">Resultado general</h2>
+        <p class="muted" style="max-width:68ch;margin-top:4px">No hay fallas graves en el código Python, las librerías del backend no tienen vulnerabilidades conocidas y no hay claves expuestas. Los pendientes están en la configuración de la API: no tiene login, acepta peticiones de cualquier sitio y puede tener un hueco en Windows que falta comprobar.</p>
+      </div>
+    </div>
+    <div class="tally">
+      <div class="tile ok"><b>6</b><span>Sin problemas</span></div>
+      <div class="tile high"><b>3</b><span>Severidad alta</span></div>
+      <div class="tile med"><b>2</b><span>Severidad media</span></div>
+      <div class="tile low"><b>1</b><span>Severidad baja</span></div>
+    </div>
+    <p class="muted" style="font-size:.8rem;margin-top:8px">Las altas incluyen S-12, que es posible pero no se pudo verificar en Windows, y S-05, que solo afecta al entorno de desarrollo.</p>
+  </section>
+
+  <section aria-labelledby="h-tools" style="display:grid;gap:12px">
+    <h2 id="h-tools">Herramientas usadas</h2>
+    <div class="tools">
+      <article class="panel tool">
+        <div class="head"><code>bandit</code><span class="chip med">1 media · 10 bajas</span></div>
+        <p class="what">Lee el código Python del backend y busca patrones peligrosos.</p>
+        <div class="bar" aria-hidden="true"><i style="width:9%;background:var(--med)"></i><i style="width:91%;background:var(--low)"></i></div>
+        <p class="res">0 de severidad alta. La media es el servidor escuchando en <span class="mono">0.0.0.0</span>; las bajas son <span class="mono">except: pass</span>.</p>
+      </article>
+      <article class="panel tool">
+        <div class="head"><code>pip-audit</code><span class="chip ok">0 vulnerabilidades</span></div>
+        <p class="what">Revisa las librerías de Python contra bases de vulnerabilidades conocidas.</p>
+        <div class="bar" aria-hidden="true"><i style="width:100%;background:var(--ok)"></i></div>
+        <p class="res">13 dependencias de <span class="mono">requirements.txt</span> sin fallas conocidas.</p>
+      </article>
+      <article class="panel tool">
+        <div class="head"><code>npm audit</code><span class="chip high">2 altas</span></div>
+        <p class="what">Lo mismo, para las librerías del frontend React.</p>
+        <div class="bar" aria-hidden="true"><i style="width:100%;background:var(--high)"></i></div>
+        <p class="res"><span class="mono">vite 8.3.0</span> y <span class="mono">source-map-js</span>. Solo el servidor de desarrollo; tienen corrección.</p>
+      </article>
+      <article class="panel tool">
+        <div class="head"><code>detect-secrets</code><span class="chip ok">0 reales</span></div>
+        <p class="what">Busca contraseñas, tokens o claves olvidadas en los archivos del repo.</p>
+        <div class="bar" aria-hidden="true"><i style="width:100%;background:var(--ok)"></i></div>
+        <p class="res">2 alertas, ambas falsas: el texto de ejemplo <span class="mono">rtsp://usuario:clave@…</span>.</p>
+      </article>
+      <article class="panel tool">
+        <div class="head"><code>pytest</code><span class="chip ok">20 / 20</span></div>
+        <p class="what">Pruebas automáticas del backend, con 7 nuevas que atacan la API a propósito.</p>
+        <div class="bar" aria-hidden="true"><i style="width:100%;background:var(--ok)"></i></div>
+        <p class="res">Archivo nuevo: <span class="mono">backend/tests/test_security.py</span>.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-find">
+    <h2 id="h-find">Hallazgos</h2>
+    <p class="muted" style="font-size:.86rem;margin-top:4px">Toca un hallazgo para ver el detalle.</p>
+    <div class="filters" role="group" aria-label="Filtrar por severidad">
+      <button type="button" data-f="all" aria-pressed="true">Todos</button>
+      <button type="button" data-f="high" aria-pressed="false">Alta</button>
+      <button type="button" data-f="med" aria-pressed="false">Media</button>
+      <button type="button" data-f="low" aria-pressed="false">Baja</button>
+      <button type="button" data-f="ok" aria-pressed="false">Sin problemas</button>
+    </div>
+    <div class="findings" id="findings"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-tests">
+    <h2 id="h-tests">Pruebas automáticas nuevas</h2>
+    <p class="muted" style="font-size:.86rem;margin:4px 0 12px">Se ejecutan con <span class="mono">python -m pytest backend/tests/test_security.py -v</span>.</p>
+    <div class="tests">
+      <div class="t"><span class="ck">✓</span><span>5 intentos de leer archivos fuera de las carpetas de imágenes con <span class="mono">..%2F</span>: todos bloqueados con 404.</span></div>
+      <div class="t"><span class="ck">✓</span><span>Subir un <span class="mono">.txt</span> como si fuera foto: se descarta sin error 500 ni falla registrada.</span></div>
+      <div class="t"><span class="ck">✓</span><span>El <span class="mono">.env</span> con credenciales no está en git y <span class="mono">.gitignore</span> lo excluye.</span></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-plan">
+    <h2 id="h-plan" style="margin-bottom:12px">Qué corregir, en orden</h2>
+    <ol class="plan">
+      <li><div><b>Validar nombres de archivo</b> en los endpoints de imágenes<small>Cierra el posible hueco de Windows</small></div><span class="chip high">S-12</span></li>
+      <li><div><b>Limitar CORS</b> a la dirección del frontend<small>Hoy acepta cualquier sitio con credenciales</small></div><span class="chip med">S-10</span></li>
+      <li><div><b>Correr <span class="mono">npm audit fix</span></b> en <span class="mono">frontend/</span><small>Actualiza vite y vuelve a probar el build</small></div><span class="chip high">S-05</span></li>
+      <li><div><b>API key simple</b> para agregar cámaras y enviar alertas<small>Necesario si la API sale de la red local</small></div><span class="chip high">S-11</span></li>
+      <li><div><b>Registrar el error</b> en vez de <span class="mono">except: pass</span><small>Facilita encontrar fallas</small></div><span class="chip low">S-03</span></li>
+    </ol>
+  </section>
+
+  <section class="panel files" aria-labelledby="h-files">
+    <h2 id="h-files" style="margin-bottom:6px">Dónde está cada cosa en el repo</h2>
+    <span><code>fases/fase3/Pruebas_de_Seguridad.md</code> · informe completo</span>
+    <span><code>fases/fase3/Evidencias/Seguridad/</code> · salida de cada herramienta</span>
+    <span><code>backend/tests/test_security.py</code> · pruebas automáticas</span>
+  </section>
+</div>
+
+<script>
+(function(){
+const F=[
+ {id:"S-01",s:"ok",t:"bandit: 0 hallazgos de severidad alta",d:"Ninguna función peligrosa como eval, ejecución de comandos con shell o deserialización insegura en las 3.890 líneas del backend."},
+ {id:"S-02",s:"med",t:"El servidor escucha en todas las interfaces (0.0.0.0)",d:"<code>backend/app/core/config.py:12</code>. Es lo esperado dentro de Docker. Para trabajar en local conviene <code>127.0.0.1</code>, así nadie más en la red ve la API."},
+ {id:"S-03",s:"low",t:"10 bloques try/except que ignoran el error",d:"En camera_service (3), incident_service (3), model_manager (2), system (1) y dataset_service (1). No es una vulnerabilidad, pero esconde fallas y dificulta auditar."},
+ {id:"S-04",s:"ok",t:"pip-audit: librerías de Python sin vulnerabilidades",d:"Ojo: <code>requirements.txt</code> usa rangos (<code>&gt;=</code>), así que se revisaron las versiones más nuevas. Para auditar las instaladas en cada PC hay que correr <code>pip-audit</code> dentro del entorno virtual."},
+ {id:"S-05",s:"high",t:"npm audit: 2 vulnerabilidades altas en el frontend",d:"<code>vite 8.3.0</code> (directa) y <code>source-map-js</code> (indirecta). Afectan al servidor de desarrollo, no al build de producción. Se corrigen con <code>npm audit fix</code>."},
+ {id:"S-06",s:"ok",t:"detect-secrets: sin claves reales en el repo",d:"Las 2 alertas son el texto de ejemplo <code>rtsp://usuario:clave@...</code> en <code>README.md:263</code> y en el placeholder de <code>CameraPage.tsx:628</code>."},
+ {id:"S-07",s:"ok",t:".env no versionado (archivo actual e historial)",d:"Nunca se subió un <code>.env</code>, ni hoy ni en commits anteriores. <code>.gitignore</code> lo excluye."},
+ {id:"S-08",s:"ok",t:"Path traversal con ../ bloqueado",d:"Pedir <code>/api/stock/historica/image/..%2F.env.example</code> y variantes devuelve 404. Probado en <code>test_security.py</code>."},
+ {id:"S-09",s:"ok",t:"Subir archivos que no son imagen no rompe la API",d:"<code>POST /api/stock/upload</code> con un .txt responde 200, lo descarta y no registra falla."},
+ {id:"S-10",s:"med",t:"CORS abierto a cualquier sitio",d:"<code>allow_origins=[\"*\"]</code> con <code>allow_credentials=True</code> en <code>backend/app/main.py</code>. Cualquier página web podría llamar a la API desde el navegador de un usuario."},
+ {id:"S-11",s:"high",t:"La API no tiene autenticación",d:"Cualquier equipo en la red puede usar todos los endpoints, incluido <code>POST /api/camera/add</code>. Es alta si la API se expone fuera de la red local."},
+ {id:"S-12",s:"high",t:"Posible acceso a archivos con \\ en Windows (sin verificar)",d:"En Windows <code>\\</code> es separador de rutas y el nombre de archivo no se valida. Para comprobarlo con la API corriendo: <code>curl.exe http://localhost:8000/api/stock/historica/image/..%5C.env.example</code>. Si responde 200 con contenido, el riesgo está confirmado."}
+];
+const lab={ok:"Sin problemas",low:"Baja",med:"Media",high:"Alta"};
+const box=document.getElementById("findings");
+function render(f){
+  box.innerHTML=F.filter(x=>f==="all"||x.s===f).map(x=>`<details class="f ${x.s}"><summary><span class="id">${x.id}</span><span>${x.t}</span><span class="chip ${x.s}">${lab[x.s]}</span></summary><div class="body">${x.d}</div></details>`).join("");
+}
+document.querySelectorAll(".filters button").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".filters button").forEach(o=>o.setAttribute("aria-pressed",o===b));
+  render(b.dataset.f);
+}));
+render("all");
+})();
+</script>
+
+</body>
+</html>
