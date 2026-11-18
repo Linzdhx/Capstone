@@ -1,0 +1,141 @@
+Run started:2026-11-18 21:13:47.600878+00:00
+
+Test results:
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: backend/app/api/system.py:40:8
+39	            gpu_info["vram_total_mb"] = round(props.total_memory / (1024 ** 2), 1)
+40	        except Exception:
+41	            pass
+42	
+
+--------------------------------------------------
+>> Issue: [B104:hardcoded_bind_all_interfaces] Possible binding to all interfaces.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-605 (https://cwe.mitre.org/data/definitions/605.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b104_hardcoded_bind_all_interfaces.html
+   Location: backend/app/core/config.py:12:16
+11	class ServerConfig(BaseModel):
+12	    host: str = "0.0.0.0"
+13	    port: int = 8000
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: backend/app/ml/model_manager.py:180:28
+179	                                    meta = json.load(f)
+180	                            except Exception:
+181	                                pass
+182	                        res["candidates"].append(ModelVersionInfo(
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: backend/app/ml/model_manager.py:205:28
+204	                                    meta = json.load(f)
+205	                            except Exception:
+206	                                pass
+207	                        res["archive"].append(ModelVersionInfo(
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: backend/app/services/camera_service.py:231:20
+230	                        cap.release()
+231	                    except Exception:
+232	                        pass
+233	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: backend/app/services/camera_service.py:300:12
+299	                    names.append(fname)
+300	            except Exception:
+301	                pass
+302	    except Exception:
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: backend/app/services/camera_service.py:302:4
+301	                pass
+302	    except Exception:
+303	        pass
+304	    return names
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: backend/app/services/dataset_service.py:149:12
+148	                    return DatasetItem(**data)
+149	            except Exception:
+150	                pass
+151	        return None
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: backend/app/services/incident_service.py:1168:20
+1167	                            json.dump(meta, f, indent=2)
+1168	                    except Exception:
+1169	                        pass
+1170	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: backend/app/services/incident_service.py:1368:20
+1367	                            meta = json.load(f)
+1368	                    except Exception:
+1369	                        pass
+1370	                meta["resolved"] = True
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: backend/app/services/incident_service.py:1400:16
+1399	                        meta = json.load(f)
+1400	                except Exception:
+1401	                    pass
+1402	
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 3890
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 0
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 10
+		Medium: 1
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 0
+		Medium: 1
+		High: 10
+Files skipped (0):
