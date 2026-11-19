@@ -30,6 +30,15 @@ alerts:
   images_dir: "alerts/images"
   logs_file: "alerts/logs/alerts.jsonl"
   webhook_url: ""
+  email_enabled: false
+  email_smtp_host: "smtp.gmail.com"
+  email_smtp_port: 587
+  email_smtp_username: ""
+  email_smtp_password: ""
+  email_from: ""
+  email_recipients: []
+  email_use_tls: true
+  email_use_ssl: false
 
 active_learning:
   auto_collect: true

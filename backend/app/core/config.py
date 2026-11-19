@@ -2,11 +2,13 @@ import os
 import yaml
 from pathlib import Path
 from typing import Optional, List, Dict, Any
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 # Localizar la raíz del proyecto
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 CONFIG_PATH = BASE_DIR / "configs" / "app_config.yaml"
+load_dotenv(BASE_DIR / ".env")
 
 class ServerConfig(BaseModel):
     host: str = "0.0.0.0"
@@ -41,6 +43,15 @@ class AlertsConfig(BaseModel):
     images_dir: str = "alerts/images"
     logs_file: str = "alerts/logs/alerts.jsonl"
     webhook_url: str = ""
+    email_enabled: bool = False
+    email_smtp_host: str = ""
+    email_smtp_port: int = 587
+    email_smtp_username: str = ""
+    email_smtp_password: str = ""
+    email_from: str = ""
+    email_recipients: List[str] = Field(default_factory=list)
+    email_use_tls: bool = True
+    email_use_ssl: bool = False
 
 class ActiveLearningConfig(BaseModel):
     auto_collect: bool = True
@@ -109,6 +120,31 @@ def load_settings() -> AppSettings:
             settings.alerts.cooldown_seconds = float(os.environ["ALERT_COOLDOWN_SECONDS"])
         except ValueError:
             pass
+    if "ALERT_EMAIL_ENABLED" in os.environ:
+        settings.alerts.email_enabled = os.environ["ALERT_EMAIL_ENABLED"].lower() in {"1", "true", "yes", "on"}
+    if "ALERT_EMAIL_SMTP_HOST" in os.environ:
+        settings.alerts.email_smtp_host = os.environ["ALERT_EMAIL_SMTP_HOST"]
+    if "ALERT_EMAIL_SMTP_PORT" in os.environ:
+        try:
+            settings.alerts.email_smtp_port = int(os.environ["ALERT_EMAIL_SMTP_PORT"])
+        except ValueError:
+            pass
+    if "ALERT_EMAIL_SMTP_USERNAME" in os.environ:
+        settings.alerts.email_smtp_username = os.environ["ALERT_EMAIL_SMTP_USERNAME"]
+    if "ALERT_EMAIL_SMTP_PASSWORD" in os.environ:
+        settings.alerts.email_smtp_password = os.environ["ALERT_EMAIL_SMTP_PASSWORD"]
+    if "ALERT_EMAIL_FROM" in os.environ:
+        settings.alerts.email_from = os.environ["ALERT_EMAIL_FROM"]
+    if "ALERT_EMAIL_RECIPIENTS" in os.environ:
+        settings.alerts.email_recipients = [
+            address.strip()
+            for address in os.environ["ALERT_EMAIL_RECIPIENTS"].split(",")
+            if address.strip()
+        ]
+    if "ALERT_EMAIL_USE_TLS" in os.environ:
+        settings.alerts.email_use_tls = os.environ["ALERT_EMAIL_USE_TLS"].lower() in {"1", "true", "yes", "on"}
+    if "ALERT_EMAIL_USE_SSL" in os.environ:
+        settings.alerts.email_use_ssl = os.environ["ALERT_EMAIL_USE_SSL"].lower() in {"1", "true", "yes", "on"}
             
     return settings
 

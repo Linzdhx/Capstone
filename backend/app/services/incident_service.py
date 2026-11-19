@@ -17,6 +17,7 @@ import re
 
 from backend.app.core.logging import logger
 from backend.app.core.config import BASE_DIR, settings
+from backend.app.services.email_service import email_alert_service
 from backend.app.schemas.detection import DetectionItem
 from backend.app.schemas.incident import (
     Location, Incident, IncidentSummary, AisleStatus, StockMetrics,
@@ -690,6 +691,22 @@ class IncidentService:
                     # Sin URL configurada, marcar como sent (registro interno)
                     status = "sent"
                     logger.info(f"Alerta de reposición registrada (sin webhook configurado) para {incident_id}.")
+            elif channel == "email":
+                try:
+                    sent = email_alert_service.send_alert(
+                        subject=f"Alerta de reposición: {display_name}",
+                        body=json.dumps(payload, ensure_ascii=False, indent=2),
+                    )
+                    status = "sent" if sent else "failed"
+                    if not sent:
+                        error_msg = "El envío por correo está desactivado."
+                except RuntimeError as exc:
+                    status = "failed"
+                    error_msg = str(exc)
+                    logger.warning("Fallo correo alerta reposición: %s", exc)
+            else:
+                status = "failed"
+                error_msg = f"Canal de alerta no soportado: {channel}"
 
             rec = ReplenishmentAlertRecord(
                 id=rec_id,
@@ -706,8 +723,8 @@ class IncidentService:
 
             # Marcar incidencia como alertada
             updated_inc = inc.model_copy(update={
-                "alert_sent": True,
-                "alert_sent_at": now_iso,
+                "alert_sent": status == "sent",
+                "alert_sent_at": now_iso if status == "sent" else None,
                 "alert_channel": channel
             })
             self._incidents[incident_id] = updated_inc
@@ -979,6 +996,20 @@ class IncidentService:
                 f"Falla detectada en '{original_filename}': {missing_count} faltantes ({missing_pct}%). "
                 f"Estado: {status_label}. Guardada en /historica como '{safe_filename}'."
             )
+
+            if sev.severity == "CRITICAL":
+                try:
+                    email_alert_service.send_alert(
+                        subject=f"Alerta crítica de góndola: {original_filename}",
+                        body=(
+                            f"{sev.message}\n\n"
+                            f"Faltantes: {missing_count}/{expected_count} ({missing_pct}%).\n"
+                            f"Imagen: {safe_filename}\n"
+                            f"Detectado: {meta['uploaded_at']}"
+                        ),
+                    )
+                except RuntimeError as exc:
+                    logger.error("No se pudo enviar alerta crítica por correo: %s", exc)
 
             return ImageAnalysisDetail(
                 filename=safe_filename,
@@ -1459,8 +1490,22 @@ class IncidentService:
                 else:
                     status = "sent"
                     logger.info(f"Alerta de reposición registrada internamente para {filename}.")
+            elif channel == "email":
+                try:
+                    sent = email_alert_service.send_alert(
+                        subject=f"Alerta de reposición: {display_name}",
+                        body=json.dumps(payload, ensure_ascii=False, indent=2),
+                    )
+                    status = "sent" if sent else "failed"
+                    if not sent:
+                        error_msg = "El envío por correo está desactivado."
+                except RuntimeError as exc:
+                    status = "failed"
+                    error_msg = str(exc)
+                    logger.warning("Fallo correo alerta reposición: %s", exc)
             else:
-                status = "sent"
+                status = "failed"
+                error_msg = f"Canal de alerta no soportado: {channel}"
 
             rec = ReplenishmentAlertRecord(
                 id=rec_id,
@@ -1473,8 +1518,8 @@ class IncidentService:
             )
 
             # Actualizar meta
-            meta["alert_sent"] = True
-            meta["alert_sent_at"] = now_iso
+            meta["alert_sent"] = status == "sent"
+            meta["alert_sent_at"] = now_iso if status == "sent" else None
             try:
                 with open(meta_path, "w", encoding="utf-8") as f:
                     json.dump(meta, f, indent=2)

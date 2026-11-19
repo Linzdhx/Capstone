@@ -2,11 +2,12 @@ from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.app.services.alert_service import alert_service
 from backend.app.services.detection_service import detection_service
 from backend.app.schemas.alert import AlertStatus, AlertEvent
+from backend.app.services.email_service import email_alert_service
 
 router = APIRouter(prefix="/api/alerts", tags=["Alerts"])
 
@@ -14,6 +15,26 @@ class AlertConfigUpdate(BaseModel):
     empty_threshold: Optional[float] = None
     consecutive_seconds: Optional[float] = None
     cooldown_seconds: Optional[float] = None
+
+
+class EmailAlertRequest(BaseModel):
+    subject: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1)
+    recipients: Optional[List[str]] = None
+
+
+@router.post("/email")
+def send_email_alert(request: EmailAlertRequest):
+    """Envía una alerta de texto a los destinatarios SMTP configurados."""
+    try:
+        sent = email_alert_service.send_alert(
+            subject=request.subject,
+            body=request.body,
+            recipients=request.recipients,
+        )
+        return {"sent": sent, "message": "Alerta enviada por correo." if sent else "Correo desactivado."}
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 @router.get("/status", response_model=AlertStatus)
 def get_alert_status():

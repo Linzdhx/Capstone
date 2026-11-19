@@ -228,6 +228,13 @@ python tools/image_sender_test.py
 ```
 La ventana permite elegir una carpeta, configurar la URL base y el intervalo de revisión (1 segundo por defecto), e iniciar/detener el envío periódico. Cada imagen JPG, JPEG, PNG, WEBP o BMP directamente en esa carpeta (no subcarpetas) se envía una vez por ejecución cuando aparece y su escritura se ha estabilizado; los nuevos archivos se agrupan en un lote. Los archivos existentes se envían al iniciar la vigilancia. Si falla la comunicación, se reintenta en el próximo intervalo; si el servidor procesó la petición pero se perdió la respuesta, el reintento podría duplicar el análisis. Al reiniciar el cliente, se vuelve a revisar y enviar el contenido de la carpeta. Los resultados se acumulan en la ventana (hasta 500 filas). No requiere instalar paquetes adicionales. Para probar contra una instancia en otra máquina, reemplaza la URL por la dirección accesible de esa instancia.
 
+### Cliente independiente para probar alertas por correo
+Con el backend en ejecución y el SMTP configurado, abre otra terminal y ejecuta:
+```bash
+python tools/email_sender_test.py
+```
+La ventana permite indicar destinatarios opcionales, asunto y cuerpo, cargar un ejemplo de alerta crítica y enviar la prueba mediante `POST /api/alerts/email`. No requiere instalar paquetes adicionales.
+
 ---
 
 ## 6. Ejecución con Docker / Docker Compose
@@ -270,6 +277,14 @@ El contenedor opera con valores predeterminados seguros sin exigir la existencia
 | `ALERT_CONSECUTIVE_SECONDS` | `3.0` | Ventana temporal continua requerida antes de alertar |
 | `ALERT_COOLDOWN_SECONDS` | `30.0` | Tiempo de enfriamiento entre alertas consecutivas |
 | `ALERT_WEBHOOK_URL` | *(vacío)* | Webhook externo para notificaciones de alerta (opcional) |
+| `ALERT_EMAIL_ENABLED` | `false` | Activa el envío de alertas por SMTP |
+| `ALERT_EMAIL_SMTP_HOST` | *(vacío)* | Servidor SMTP |
+| `ALERT_EMAIL_SMTP_PORT` | `587` | Puerto SMTP |
+| `ALERT_EMAIL_SMTP_USERNAME` / `ALERT_EMAIL_SMTP_PASSWORD` | *(vacío)* | Credenciales SMTP |
+| `ALERT_EMAIL_FROM` | *(vacío)* | Remitente; usa el usuario SMTP si se omite |
+| `ALERT_EMAIL_RECIPIENTS` | *(vacío)* | Destinatarios separados por coma |
+
+Para desarrollo local, copia `.env.example` a `.env` y completa allí las credenciales. `.env` se carga automáticamente y está excluido de Git; cambia `ALERT_EMAIL_ENABLED` a `true` después de configurar el SMTP.
 
 ### 4. Verificación del Healthcheck
 El contenedor incluye una directiva de salud automática que valida periódicamente el endpoint `/api/health`:
@@ -535,6 +550,7 @@ El backend FastAPI expone una API REST modular, asíncrona y de alto rendimiento
 | `GET` | `/api/alerts/history` | - | Historial paginado de eventos de alerta registrados en `alerts.jsonl`. |
 | `GET` | `/api/alerts/snapshots/{filename}`| Path param: `filename` | Descarga el snapshot JPEG capturado durante un evento de alerta. |
 | `POST` | `/api/alerts/config` | `{"empty_threshold": 0.8, ...}` | Actualiza umbrales de alerta, tiempo consecutivo y cooldown en caliente. |
+| `POST` | `/api/alerts/email` | `{"subject": "...", "body": "...", "recipients": [...]}` | Envía una alerta por correo usando SMTP. |
 
 #### Modelos y Gestión del Ciclo de Vida (Hot-Swap / Rollback)
 | Método | Endpoint | Parámetros / Payload | Descripción |

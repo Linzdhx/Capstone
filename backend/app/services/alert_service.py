@@ -11,6 +11,7 @@ from backend.app.core.logging import logger
 from backend.app.core.config import BASE_DIR, settings
 from backend.app.schemas.alert import AlertEvent, AlertStatus
 from backend.app.schemas.inventory import InventoryMetrics
+from backend.app.services.email_service import email_alert_service
 
 class AlertService:
     """Sistema de alertas por desabastecimiento con ventana temporal, cooldown y registro persistente."""
@@ -152,6 +153,7 @@ class AlertService:
 
         logger.warning(f"¡ALERTA DISPARADA! {event.message}")
         self._dispatch_webhook(event)
+        self._dispatch_email(event)
         return event
 
     def _dispatch_webhook(self, event: AlertEvent) -> None:
@@ -164,6 +166,15 @@ class AlertService:
             requests.post(webhook_url, json=event.model_dump(), timeout=2.0)
         except Exception as e:
             logger.warning(f"No se pudo despachar webhook de alerta: {e}")
+
+    def _dispatch_email(self, event: AlertEvent) -> None:
+        try:
+            email_alert_service.send_alert(
+                subject=f"Alerta crítica de inventario [{event.id}]",
+                body=event.message,
+            )
+        except RuntimeError as exc:
+            logger.error("Fallo al despachar alerta por correo: %s", exc)
 
     def get_status(self, current_empty_rate: float = 0.0) -> AlertStatus:
         now = time.time()
