@@ -112,8 +112,8 @@ PATRONES_SECRETOS = [
     (re.compile(r'gh[pousr]_[A-Za-z0-9_]{36,}'), "GitHub Token"),
     (re.compile(r'sk-[a-zA-Z0-9]{32,}'), "OpenAI API Key"),
     (re.compile(r'-----BEGIN (?:RSA|OPENSSH|DSA|EC|PGP)? PRIVATE KEY'), "Clave privada"),
-    # URL RTSP con usuario:contraseña real (no ejemplos tipo 'usuario:clave' o '***:***')
-    (re.compile(r'rtsp://(?!(?:usuario:clave|\*\*\*:\*\*\*))[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+@'), "RTSP con credenciales reales"),
+    # URL RTSP con usuario:contraseña real (no ejemplos tipo 'usuario:clave', 'user:pass' o '***:***')
+    (re.compile(r'rtsp://(?!(?:usuario:clave|user:pass|\*\*\*:\*\*\*))[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+@'), "RTSP con credenciales reales"),
     # Webhooks reales de Slack / Discord
     (re.compile(r'https://hooks\.slack\.com/services/T[0-9A-Z]{8,}/B[0-9A-Z]{8,}/[0-9A-Za-z]{20,}'), "Webhook Slack real"),
     (re.compile(r'https://discord(?:app)?\.com/api/webhooks/\d+/[A-Za-z0-9_-]{30,}'), "Webhook Discord real"),
