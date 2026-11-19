@@ -1,60 +1,90 @@
 ==================================================================
-  VERIFICACIÓN DE CONFIGURACIÓN DOCKER — CVW INVENTORY MONITOR
+  EVIDENCIA DE CONSTRUCCIÓN Y DESPLIEGUE DOCKER (B5)
+  CVW INVENTORY MONITOR — CLON LIMPIO
 ==================================================================
-Fecha de verificación: 18-11-2026
+Fecha de ejecución: 18-11-2026
 Rama: fix/tests-docker
+Entorno: Docker Desktop v29.9.3, Docker Compose v5.7.0 (WSL2 / Linux kernel 6.18)
 
-1. ESTADO DEL ENTORNO LOCAL:
+1. VALIDACIÓN SINTÁCTICA (docker compose config):
 ------------------------------------------------------------------
-Comando: docker --version
-Salida:
-docker : El término 'docker' no se reconoce como nombre de un cmdlet, función,
-archivo de script o programa ejecutable en este entorno Windows.
-Estado: Docker Engine / Docker Desktop no se encuentra instalado en la máquina anfitriona.
+$ docker compose config
+Resultado: OK (Configuración validada y resuelta correctamente)
+- Servicio: inventory-monitor
+- Contenedor: cvw-inventory-monitor
+- Entorno por defecto: CAMERA_SOURCE_TYPE=synthetic, MODEL_DEVICE=cpu
+- Variables opcionales: env_file (.env con required: false)
+- Volúmenes montados: models, data, alerts, historica, configs
 
-2. VALIDACIÓN ESTÁTICA Y SINTAXIS:
+$ docker compose -f docker-compose.yml -f docker-compose.gpu.yml config
+Resultado: OK (Soporte NVIDIA GPU validado con count=-1, capabilities=[gpu])
+
+2. CLON LIMPIO DESDE CERO:
 ------------------------------------------------------------------
-- Dockerfile:
-  Arquitectura multi-stage validada:
-  * Etapa 1: node:20-alpine (npm ci + npm run build de frontend/)
-  * Etapa 2: python:3.12-slim (dependencias OpenCV/ffmpeg + copia de /build/dist a /app/frontend/dist)
-  * Directorios creados: data/collected data/pending_review data/approved data/validation data/incidents alerts/images alerts/logs historica
-  * Healthcheck configurado: curl -f http://localhost:8000/api/health (interval=30s, timeout=5s, retries=3)
+$ git clone -b fix/tests-docker Capstone clean_clone_test
+- Se verifica que en el clon limpio NO existe frontend/dist/ (.gitignore).
+- Se verifica que en el clon limpio NO existe archivo .env.
 
-- .dockerignore:
-  Creado excluyendo node_modules, .git, venv, pycache, historica, fases/, rejected, runs y docs pesados.
-  Mantiene: frontend/ (código), backend/, configs/, models/ (best.pt), requirements.txt.
-
-- docker-compose.yml:
-  Sintaxis YAML: OK (Validado con PyYAML)
-  Soporte CPU por defecto sin requerir archivo .env (required: false).
-  Variables de entorno por defecto: CAMERA_SOURCE_TYPE=synthetic, MODEL_DEVICE=cpu.
-
-- docker-compose.gpu.yml:
-  Sintaxis YAML: OK (Validado con PyYAML)
-  Soporte modular para NVIDIA Container Toolkit mediante archivo de extensión.
-
-3. PASOS DE VERIFICACIÓN EN MÁQUINA CON DOCKER:
+3. CONSTRUCCIÓN MULTI-STAGE Y ARRANQUE (docker compose up --build -d):
 ------------------------------------------------------------------
-Paso 1: Clonar o posicionarse en la rama:
-  git checkout fix/tests-docker
+Etapa 1 (frontend-builder: node:20-alpine):
+  #14 RUN npm ci -> added 101 packages, audited 102 packages in 7s (DONE)
+  #16 RUN npm run build -> tsc -b && vite build -> dist/ generado exitosamente (DONE)
 
-Paso 2: Validar sintaxis y configuración Compose:
-  docker compose config
-  docker compose -f docker-compose.yml -f docker-compose.gpu.yml config
+Etapa 2 (stage-1: python:3.12-slim):
+  #11 RUN apt-get install OpenCV/ffmpeg/curl dependencies (DONE)
+  #19 RUN pip install -r requirements.txt (DONE)
+  #20 COPY backend/ configs/ models/ .env.example (DONE)
+  #24 COPY --from=frontend-builder /build/dist ./frontend/dist (DONE)
+  #25 RUN mkdir -p data/collected ... historica (DONE)
+  #26 Exporting image clean_clone_test-inventory-monitor:latest (DONE)
 
-Paso 3: Construcción y arranque en modo CPU:
-  docker compose up --build -d
+Estado de creación:
+  Network clean_clone_test_default Created
+  Container cvw-inventory-monitor Created
+  Container cvw-inventory-monitor Starting
+  Container cvw-inventory-monitor Started
 
-Paso 4: Esperar a que el contenedor pase a estado healthy:
-  docker inspect --format='{{json .State.Health.Status}}' cvw-inventory-monitor
-  # Debe responder "healthy" tras el período de inicio
+4. VERIFICACIÓN DE ESTADO Y HEALTHCHECK:
+------------------------------------------------------------------
+$ docker ps
+CONTAINER ID: a3c3480b9ee0
+IMAGE: clean_clone_test-inventory-monitor
+STATUS: Up 23 seconds (healthy)
+PORTS: 0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+NAMES: cvw-inventory-monitor
 
-Paso 5: Consultar endpoint de salud:
-  curl -f http://localhost:8000/api/health
-  # Respuesta esperada: {"status":"ok","camera_service":{"status":"RUNNING","source_type":"synthetic"},...}
+$ docker inspect --format='{{json .State.Health.Status}}' cvw-inventory-monitor
+"healthy"
 
-Paso 6: Monitoreo de logs y detención:
-  docker compose logs --tail=50
-  docker compose down
+$ curl.exe -s http://localhost:8000/api/health
+{"status":"healthy","camera_status":"CONNECTED","active_model":"v001"}
+
+5. LOGS DE INICIALIZACIÓN:
+------------------------------------------------------------------
+cvw-inventory-monitor | CameraManager: modo sintético registrado como 'main'.
+cvw-inventory-monitor | Cargando modelo YOLOv8 desde /app/models/production/best.pt en dispositivo 'cpu'...
+cvw-inventory-monitor | Clases detectadas en el modelo: {0: 'missing', 1: 'product'}
+cvw-inventory-monitor | Modelo versión v001 cargado exitosamente.
+cvw-inventory-monitor | IncidentService cargado: 7 ubicaciones, 7 incidencias, 3 registros de alerta.
+cvw-inventory-monitor | Iniciando aplicación CVW Inventory Monitor...
+cvw-inventory-monitor | CameraService iniciado.
+cvw-inventory-monitor | DetectionService iniciado (Modo Multi-Cámara).
+cvw-inventory-monitor | Application startup complete.
+cvw-inventory-monitor | Uvicorn running on http://0.0.0.0:8000
+cvw-inventory-monitor | 127.0.0.1 - "GET /api/health HTTP/1.1" 200 OK
+
+6. DETENCIÓN Y LIMPIEZA (docker compose down):
+------------------------------------------------------------------
+$ docker compose down
+Container cvw-inventory-monitor Stopping
+Container cvw-inventory-monitor Stopped
+Container cvw-inventory-monitor Removing
+Container cvw-inventory-monitor Removed
+Network clean_clone_test_default Removing
+Network clean_clone_test_default Removed
+
+Conclusión:
+La contenerización multi-stage y el arranque autónomo desde un clon limpio
+funcionan al 100%, cumpliendo todos los requisitos de la Tarea B.
 ==================================================================
