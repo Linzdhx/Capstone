@@ -1,0 +1,28 @@
+﻿==================================================
+  EJECUTANDO PRUEBAS DEL NUEVO FLUJO /historica   
+==================================================
+1. Estado Inactivo Inicial:
+   is_active = False | total_aisles = 0
+2. Carga de imagen sin faltantes:
+   Total analizadas: 1
+   Fallas detectadas: 0
+   Descartadas: 1
+   Dashboard activo: False
+3. Activación por Faltantes en /historica:
+   is_active = True | total_aisles = 2
+   -> Alerta 1 | Archivo: gondola_lacteos.jpg | Severidad: CRITICAL
+   -> Alerta 2 | Archivo: gondola_panaderia.jpg | Severidad: CRITICAL
+4. Resolviendo falla de Pasillo 1 (gondola_lacteos.jpg)...
+   Respuesta de resolución: Falla resuelta para 'gondola_lacteos.jpg'. Pasillos reordenados automáticamente.
+   Estado tras resolución:
+   Pasillos restantes: 1
+   -> Alerta 1 | Archivo: gondola_panaderia.jpg
+   -> ÉXITO: El antiguo Pasillo 2 pasó a ser automáticamente Pasillo 1!
+5. Resolviendo último pasillo (gondola_panaderia.jpg)...
+   Estado final con /historica vacía:
+   is_active = False | total_aisles = 0
+   -> ÉXITO: El Dashboard vuelve a quedar inactivo correctamente.
+
+==================================================
+   TODAS LAS PRUEBAS DEL NUEVO FLUJO PASARON 100% 
+==================================================
