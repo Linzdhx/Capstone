@@ -23,8 +23,8 @@ Verificar que cada componente del sistema funcione según los requisitos del ERS
 | Flujo de API (sistema) | Endpoints de `/api/stock` con el servidor corriendo | requests | `test_historica_flow.py` |
 | Evaluación del modelo | Precisión, Recall, mAP50 y mAP50-95 por clase | Ultralytics (Google Colab) | Notebook `Proyecto_CVW_modelo_v2.ipynb` |
 | Robustez | Desempeño con imágenes degradadas tipo cámara (compresión, baja resolución, ruido, sombras, escala de grises) | Albumentations + Ultralytics | Particiones `valid_cam` y `test_cam` del notebook |
-| Rendimiento | Tiempo de inferencia por imagen (RNF-01: < 5 s) | Ultralytics | Notebook / ERS 11.4 |
-| Seguridad | Que no haya credenciales en el código (RNF-05) ni acceso a cámaras o red corporativa (RNF-03) | Revisión manual | Revisión de Pull Requests |
+| Rendimiento | Tiempo de inferencia por imagen (RNF-01: < 5 s) y latencia API punta a punta | pytest / script benchmark | `backend/tests/test_performance.py`, `tools/benchmark_inference.py` |
+| Seguridad | Ausencia de secretos y credenciales (RNF-05), `.env` fuera de git, hallazgo CORS, path traversal y resiliencia ante archivos anómalos | pytest, bandit, pip-audit | `backend/tests/test_security.py`, `tools/security_audit.sh` |
 | Manual / exploratoria | Envío periódico de imágenes desde una carpeta al sistema | Cliente de escritorio | `tools/image_sender_test.py` |
 
 ## 4. Casos de prueba automatizados
@@ -44,7 +44,9 @@ Verificar que cada componente del sistema funcione según los requisitos del ERS
 | PU-09 | `test_dataset_service.py` | Ciclo de una muestra: captura → revisión → aprobación | Active learning |
 | PU-10 | `test_image_ingestion_service.py` | Los lotes recientes se listan del más nuevo al más antiguo y con límite | RF-07 |
 | PU-11 a PU-13 | `test_model_manager.py` | Clases del modelo, actualización de umbrales y listado de versiones | RF-12 |
-| PU-14 a PU-19 | `test_semaforo.py` (PR #1) | Clasificación Verde / Amarillo / Rojo / Sin datos y su integración con el inventario | RF-09 |
+| PU-14 a PU-20 | `test_semaforo.py` | Clasificación Verde / Amarillo / Rojo / Sin datos, casos límite y su integración con inventario | RF-09 |
+| PU-21 a PU-22 | `test_performance.py` | Cumplimiento RNF-01 (< 5 s) en inferencia YOLOv8s y latencia punta a punta API | RNF-01 |
+| PU-23 a PU-36 | `test_security.py` | Bloqueo de path traversal, subida de archivos anómalos, .env fuera de git, ausencia de secretos y hallazgo CORS | RNF-05 |
 
 ### 4.2 Integración (`test_all_scenarios.py`)
 
@@ -61,7 +63,7 @@ Verificar que cada componente del sistema funcione según los requisitos del ERS
 
 ### 4.3 Flujo de API (`test_historica_flow.py`)
 
-Requiere el servidor corriendo en `http://localhost:8000`. Verifica que el dashboard inicie inactivo, que una imagen sin faltantes se descarte y que las imágenes con faltantes se guarden en `historica/` y activen el dashboard.
+Automatizado con fixture para arranque y apagado del servidor (`python run.py`) y aislamiento de `/historica`. Verifica que el dashboard inicie inactivo, que una imagen de góndola correcta se descarte y que las imágenes con faltantes activen el dashboard, se resuelvan y se reordenen dinámicamente.
 
 ## 5. Evaluación del modelo (YOLOv8s v2)
 
@@ -78,26 +80,39 @@ Partición de prueba de 53 imágenes no vistas en el entrenamiento, más su copi
 
 Además se analizaron por imagen los **10 mejores y 10 peores casos** de `test_cam` (emparejamiento uno a uno por clase con IoU ≥ 0,5). Ver el Informe Intermedio de Avance.
 
-**Rendimiento:** inferencia de 8,7 ms por imagen en GPU T4 con YOLOv8n (ERS 11.4), muy por debajo del límite de 5 s del RNF-01.
+**Rendimiento:** inferencia real con el modelo de producción activo YOLOv8s medida sobre 20 imágenes del repositorio: mediana de 36,82 ms, p95 de 82,78 ms y máximo de 91,61 ms en GPU NVIDIA GeForce RTX 3060 Laptop (y ~176,50 ms punta a punta en la API), cumpliendo holgadamente el límite de 5 s del RNF-01 (el valor preliminar de 8,7 ms del ERS 11.4 correspondía a YOLOv8n en Colab T4).
 
 ## 6. Resultados de la última ejecución
 
 | Conjunto | Resultado | Fecha | Observación |
 |---|---|---|---|
-| `backend/tests/` (sin `test_model_manager.py`) | **10 de 10 aprobadas** | 06/11/2026 | Rama `main` |
-| `test_all_scenarios.py` | **8 de 8 aprobadas** | 06/11/2026 | Rama `main` |
-| `test_semaforo.py` + `test_inventory_service.py` | **10 de 10 aprobadas** | 31/10/2026 | Rama `Dsalvatierra` (PR #1) |
-| `test_model_manager.py` | No ejecutada en esta corrida | — | Requiere PyTorch y los pesos del modelo instalados |
-| `test_historica_flow.py` | No ejecutada en esta corrida | — | Requiere el servidor corriendo |
+| `backend/tests/` completo (con `test_model_manager.py`, `test_semaforo.py`, `test_security.py` y `test_performance.py`) | **36 de 36 aprobadas** | 18/11/2026 | Rama `fix/tests-docker` |
+| `test_all_scenarios.py` | **8 de 8 aprobadas** | 18/11/2026 | Rama `fix/tests-docker` |
+| `test_historica_flow.py` | **5 de 5 etapas aprobadas** | 18/11/2026 | Automatizado con fixture y gestión de servidor |
+| Benchmark YOLOv8s (`tools/benchmark_inference.py`) | **Aprobado (p50: 36,8 ms, max: 91,6 ms)** | 18/11/2026 | GPU NVIDIA RTX 3060 Laptop; cumple RNF-01 |
+| Auditoría Bandit (`tools/security_audit.sh`) | **0 vulnerabilidades altas** | 18/11/2026 | B104 (bind 0.0.0.0 esperado por Docker), B110 bajos |
+| Auditoría pip-audit (`tools/security_audit.sh`) | **0 vulnerabilidades conocidas** | 18/11/2026 | Auditado contra requirements.txt |
 
 ## 7. Cómo ejecutar las pruebas
 
 ```bash
 pip install -r requirements.txt
+pip install -r requirements-dev.txt
+
+# Pruebas unitarias y de backend (incluye seguridad y rendimiento)
 python -m pytest backend/tests -v
+
+# Solo rendimiento
+python -m pytest -m performance -v
+
+# Pruebas de integración de negocio
 python -m pytest test_all_scenarios.py -v
-# Con el servidor corriendo (python run.py):
+
+# Flujo de API de punta a punta (arranca y detiene el servidor automáticamente):
 python test_historica_flow.py
+
+# Auditorías de seguridad estática y dependencias
+bash tools/security_audit.sh
 ```
 
 ## 8. Criterios de aceptación
@@ -110,6 +125,5 @@ python test_historica_flow.py
 ## 9. Pendientes
 
 - Probar con imágenes reales de cámaras de tienda cuando estén disponibles.
-- Automatizar `test_historica_flow.py` levantando el servidor dentro de la prueba.
-- Ejecutar `test_model_manager.py` en un entorno con PyTorch y registrar el resultado.
-- Agregar pruebas de interfaz del frontend.
+- Agregar pruebas de interfaz del frontend (Cypress o Playwright).
+- Corregir hallazgo de seguridad S-10 en despliegue (restringir CORS a orígenes específicos del cliente en lugar de comodín con credenciales).
