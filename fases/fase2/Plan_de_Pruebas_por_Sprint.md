@@ -84,3 +84,4 @@
 | **Sprint 3** | Lógica de semáforo | Pruebas unitarias de semáforo (Verde/Amarillo/Rojo/Sin datos) | Completado |
 | **Sprint 4** | Arquitectura y alertas | Pruebas unitarias de servicios modulares y cooldown | Completado |
 | **Sprint 5** | Integración y validación | Pruebas de integración, flujo API, seguridad y rendimiento RNF-01 | Completado |
+

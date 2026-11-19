@@ -230,17 +230,71 @@ En el archivo `.env`, usar `CAMERA_SOURCE_TYPE=synthetic`. El sistema genera una
 
 ### Con Docker
 
+El despliegue contenerizado utiliza una compilación multi-stage (`node:20-alpine` para el frontend y `python:3.12-slim` para el backend) que compila de manera autónoma el frontend y el backend sin requerir Node.js en el host ni compilar manualmente `frontend/dist`.
+
+#### Requisitos
+- Docker Engine 24+ y Docker Compose v2.
+- Para GPU: tarjeta NVIDIA, NVIDIA Container Toolkit y drivers actualizados.
+
+#### Despliegue en CPU (por defecto)
+Arranca el sistema en CPU con simulador sintético (`CAMERA_SOURCE_TYPE=synthetic`), sin requerir cámara física ni tarjeta gráfica:
 ```bash
 docker compose up --build -d
+```
+
+#### Despliegue con GPU NVIDIA (CUDA)
+Para activar aceleración por GPU con el archivo de extensión:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d
+```
+
+#### Variables de entorno disponibles
+El contenedor arranca con valores por defecto y no requiere obligatoriamente un archivo `.env`. Para personalizar, copiar `.env.example` a `.env`:
+
+| Variable | Valor por defecto | Descripción |
+|---|---|---|
+| `ENV` | `production` | Modo de ejecución (`development` / `production`) |
+| `DEBUG` | `false` | Depuración en FastAPI |
+| `SERVER_HOST` | `0.0.0.0` | Host de escucha |
+| `SERVER_PORT` | `8000` | Puerto expuesto |
+| `CAMERA_SOURCE_TYPE` | `synthetic` | Fuente: `synthetic`, `webcam`, `usb`, `rtsp` |
+| `CAMERA_WEBCAM_INDEX` | `0` | Índice de webcam física |
+| `CAMERA_RTSP_URL` | *(vacío)* | Stream RTSP (`rtsp://usuario:clave@host:puerto/path`) |
+| `MODEL_CONFIDENCE` | `0.25` | Umbral de confianza YOLO |
+| `MODEL_IOU` | `0.45` | Umbral de IoU (NMS) |
+| `MODEL_DEVICE` | `cpu` (o `cuda`) | Dispositivo PyTorch (`cpu`, `cuda`, `auto`) |
+| `ALERT_EMPTY_THRESHOLD` | `0.80` | Umbral de vacío (80 % vacío = 20 % stock) |
+| `ALERT_CONSECUTIVE_SECONDS` | `3.0` | Tiempo consecutivo antes de disparar alerta |
+| `ALERT_COOLDOWN_SECONDS` | `30.0` | Enfriamiento entre alertas sucesivas |
+| `ALERT_WEBHOOK_URL` | *(vacío)* | Webhook para notificación de alertas |
+
+#### Verificación del Healthcheck
+```bash
+curl -f http://localhost:8000/api/health
+docker inspect --format='{{json .State.Health.Status}}' cvw-inventory-monitor
+```
+
+#### Visualización de logs
+```bash
+docker compose logs -f inventory-monitor
+docker compose logs --tail=100 inventory-monitor
+```
+
+#### Detener y limpiar
+```bash
+docker compose down      # Conserva volúmenes de datos
+docker compose down -v   # Elimina volúmenes y redes asociadas
 ```
 
 ### Pruebas automáticas
 
 ```bash
 python -m pytest backend/tests -v
+python -m pytest test_all_scenarios.py -v
+python test_historica_flow.py
 ```
 
-Las 12 pruebas verifican el cálculo de inventario (incluido el caso sin detecciones), el filtro de región de interés, la ventana de 3 segundos, el cooldown, la gestión de modelos y el ciclo de vida de las muestras.
+La suite cuenta con 36 pruebas en `backend/tests` (inventario, semáforo, filtro ROI, ventana de alerta, cooldown, hot-swap de modelos, ciclo HITL de muestras, seguridad de API y rendimiento RNF-01), 8 pruebas de integración de negocio en `test_all_scenarios.py` y 5 etapas en `test_historica_flow.py`.
 
 ---
 

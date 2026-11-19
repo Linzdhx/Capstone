@@ -232,12 +232,73 @@ La ventana permite elegir una carpeta, configurar la URL base y el intervalo de 
 
 ## 6. Ejecución con Docker / Docker Compose
 
-Para desplegar en contenedores con aceleración GPU:
+El despliegue con Docker utiliza una arquitectura multi-stage (`node:20-alpine` para compilar el frontend y `python:3.12-slim` para el runtime de backend y visión) que compila y empaqueta el sistema completo de forma autónoma desde un clon limpio, sin requerir Node.js en el host ni generar manualmente `frontend/dist`.
 
+### Requisitos previos
+- **Docker Engine** (v24 o superior) y **Docker Compose v2** (`docker compose`).
+- Para soporte de GPU: **NVIDIA GPU**, **NVIDIA Container Toolkit** (`nvidia-container-toolkit`) y controladores NVIDIA actualizados.
+
+### 1. Despliegue en modo CPU (predeterminado)
+Funciona directamente en cualquier equipo o servidor sin necesidad de tarjeta gráfica dedicada ni drivers propietarios:
 ```bash
 docker compose up --build -d
 ```
-El contenedor expondrá el servicio en el puerto `8000` con persistencia en `./models`, `./data`, `./alerts` y `./configs`.
+El contenedor arranca por defecto con `CAMERA_SOURCE_TYPE=synthetic` y `MODEL_DEVICE=cpu`, garantizando inicialización inmediata sin hardware físico. El servicio queda expuesto en `http://localhost:8000` con persistencia en `./models`, `./data`, `./alerts`, `./historica` y `./configs`.
+
+### 2. Despliegue con aceleración NVIDIA GPU
+Para habilitar inferencia acelerada mediante CUDA utilizando el archivo de sobrescritura `docker-compose.gpu.yml`:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d
+```
+
+### 3. Variables de entorno disponibles
+El contenedor opera con valores predeterminados seguros sin exigir la existencia previa de `.env`. Si deseas personalizar la configuración, crea tu archivo `.env` a partir de `.env.example`:
+
+| Variable | Valor por defecto | Descripción |
+|---|---|---|
+| `ENV` | `production` | Entorno de ejecución (`development` / `production`) |
+| `DEBUG` | `false` | Activa modo depuración en FastAPI |
+| `SERVER_HOST` | `0.0.0.0` | Interfaz de red de enlace |
+| `SERVER_PORT` | `8000` | Puerto HTTP expuesto |
+| `CAMERA_SOURCE_TYPE` | `synthetic` | Fuente de video: `synthetic`, `webcam`, `usb`, `rtsp` |
+| `CAMERA_WEBCAM_INDEX` | `0` | Índice del dispositivo USB/DirectShow |
+| `CAMERA_RTSP_URL` | *(vacío)* | URL de cámara IP RTSP (`rtsp://user:pass@ip:port/stream`) |
+| `MODEL_CONFIDENCE` | `0.25` | Umbral mínimo de confianza de detección YOLO |
+| `MODEL_IOU` | `0.45` | Umbral de intersección sobre unión (NMS) |
+| `MODEL_DEVICE` | `cpu` (o `cuda`) | Dispositivo de inferencia PyTorch (`cpu`, `cuda`, `auto`) |
+| `ALERT_EMPTY_THRESHOLD` | `0.80` | Tasa de vacío para disparar alerta (80 % vacío = 20 % stock) |
+| `ALERT_CONSECUTIVE_SECONDS` | `3.0` | Ventana temporal continua requerida antes de alertar |
+| `ALERT_COOLDOWN_SECONDS` | `30.0` | Tiempo de enfriamiento entre alertas consecutivas |
+| `ALERT_WEBHOOK_URL` | *(vacío)* | Webhook externo para notificaciones de alerta (opcional) |
+
+### 4. Verificación del Healthcheck
+El contenedor incluye una directiva de salud automática que valida periódicamente el endpoint `/api/health`:
+```bash
+# Verificar estado de salud desde la máquina anfitriona
+curl -f http://localhost:8000/api/health
+
+# Inspeccionar el estado de salud reportado por Docker
+docker inspect --format='{{json .State.Health.Status}}' cvw-inventory-monitor
+```
+Respuesta esperada: `{"status":"ok", ...}` o `"healthy"`.
+
+### 5. Monitoreo y visualización de logs
+```bash
+# Ver logs en tiempo real
+docker compose logs -f inventory-monitor
+
+# Ver las últimas 100 líneas
+docker compose logs --tail=100 inventory-monitor
+```
+
+### 6. Detener y limpiar contenedores
+```bash
+# Detener el contenedor conservando volúmenes de datos
+docker compose down
+
+# Detener y eliminar contenedores y redes asociadas
+docker compose down -v
+```
 
 ---
 

@@ -8,18 +8,25 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - path: .env
+        required: false
+    environment:
+      - ENV=production
+      - DEBUG=false
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8000
+      - CAMERA_SOURCE_TYPE=synthetic
+      - MODEL_CONFIDENCE=0.25
+      - MODEL_IOU=0.45
+      - MODEL_DEVICE=cpu
+      - ALERT_EMPTY_THRESHOLD=0.80
+      - ALERT_CONSECUTIVE_SECONDS=3.0
+      - ALERT_COOLDOWN_SECONDS=30.0
+      - ALERT_WEBHOOK_URL=
     volumes:
-      # Persistencia de modelos, datasets, alertas y configuración
+      # Persistencia de modelos, datasets, alertas, histórico e incidencias
       - ./models:/app/models
       - ./data:/app/data
       - ./alerts:/app/alerts
+      - ./historica:/app/historica
       - ./configs:/app/configs
-    # Habilitar GPU NVIDIA en Docker si está disponible (NVIDIA Container Toolkit)
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]

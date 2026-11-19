@@ -104,3 +104,4 @@ def test_api_end_to_end_upload_latency():
 
     avg_latency = float(np.mean(latencies_ms))
     assert avg_latency < 5000.0, f"Latencia API punta a punta excedió 5 s: {avg_latency:.1f} ms"
+

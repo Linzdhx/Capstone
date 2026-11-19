@@ -1,0 +1,14 @@
+# Sobrescritura de Docker Compose para soporte de aceleración NVIDIA GPU
+# Uso: docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d
+services:
+  inventory-monitor:
+    environment:
+      - MODEL_DEVICE=cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+

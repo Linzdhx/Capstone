@@ -1,0 +1,60 @@
+==================================================================
+  VERIFICACIÓN DE CONFIGURACIÓN DOCKER — CVW INVENTORY MONITOR
+==================================================================
+Fecha de verificación: 18-11-2026
+Rama: fix/tests-docker
+
+1. ESTADO DEL ENTORNO LOCAL:
+------------------------------------------------------------------
+Comando: docker --version
+Salida:
+docker : El término 'docker' no se reconoce como nombre de un cmdlet, función,
+archivo de script o programa ejecutable en este entorno Windows.
+Estado: Docker Engine / Docker Desktop no se encuentra instalado en la máquina anfitriona.
+
+2. VALIDACIÓN ESTÁTICA Y SINTAXIS:
+------------------------------------------------------------------
+- Dockerfile:
+  Arquitectura multi-stage validada:
+  * Etapa 1: node:20-alpine (npm ci + npm run build de frontend/)
+  * Etapa 2: python:3.12-slim (dependencias OpenCV/ffmpeg + copia de /build/dist a /app/frontend/dist)
+  * Directorios creados: data/collected data/pending_review data/approved data/validation data/incidents alerts/images alerts/logs historica
+  * Healthcheck configurado: curl -f http://localhost:8000/api/health (interval=30s, timeout=5s, retries=3)
+
+- .dockerignore:
+  Creado excluyendo node_modules, .git, venv, pycache, historica, fases/, rejected, runs y docs pesados.
+  Mantiene: frontend/ (código), backend/, configs/, models/ (best.pt), requirements.txt.
+
+- docker-compose.yml:
+  Sintaxis YAML: OK (Validado con PyYAML)
+  Soporte CPU por defecto sin requerir archivo .env (required: false).
+  Variables de entorno por defecto: CAMERA_SOURCE_TYPE=synthetic, MODEL_DEVICE=cpu.
+
+- docker-compose.gpu.yml:
+  Sintaxis YAML: OK (Validado con PyYAML)
+  Soporte modular para NVIDIA Container Toolkit mediante archivo de extensión.
+
+3. PASOS DE VERIFICACIÓN EN MÁQUINA CON DOCKER:
+------------------------------------------------------------------
+Paso 1: Clonar o posicionarse en la rama:
+  git checkout fix/tests-docker
+
+Paso 2: Validar sintaxis y configuración Compose:
+  docker compose config
+  docker compose -f docker-compose.yml -f docker-compose.gpu.yml config
+
+Paso 3: Construcción y arranque en modo CPU:
+  docker compose up --build -d
+
+Paso 4: Esperar a que el contenedor pase a estado healthy:
+  docker inspect --format='{{json .State.Health.Status}}' cvw-inventory-monitor
+  # Debe responder "healthy" tras el período de inicio
+
+Paso 5: Consultar endpoint de salud:
+  curl -f http://localhost:8000/api/health
+  # Respuesta esperada: {"status":"ok","camera_service":{"status":"RUNNING","source_type":"synthetic"},...}
+
+Paso 6: Monitoreo de logs y detención:
+  docker compose logs --tail=50
+  docker compose down
+==================================================================

@@ -20,3 +20,4 @@ pip-audit -r requirements.txt
 
 echo ""
 echo "Auditoría de seguridad completada."
+

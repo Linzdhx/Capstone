@@ -1,7 +1,24 @@
-# Dockerfile para CVW Inventory Monitor
+# ==============================================================
+# Etapa 1: Compilación de Frontend (React + Vite + TypeScript)
+# ==============================================================
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /build
+
+# Copiar manifiestos de paquetes e instalar dependencias limpias
+COPY frontend/package*.json ./
+RUN npm ci
+
+# Copiar código fuente del frontend y compilar bundle de producción
+COPY frontend/ ./
+RUN npm run build
+
+# ==============================================================
+# Etapa 2: Runtime Backend (FastAPI + YOLOv8 + Static Frontend)
+# ==============================================================
 FROM python:3.12-slim
 
-# Evitar prompts interactivos
+# Evitar prompts interactivos y buffer en logs
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 
@@ -22,15 +39,17 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copiar código del proyecto y artefactos
+# Copiar código backend, configuraciones y modelos
 COPY backend/ ./backend/
 COPY configs/ ./configs/
 COPY models/ ./models/
-COPY frontend/dist/ ./frontend/dist/
 COPY .env.example .env
 
-# Crear directorios para persistencia de datos y logs
-RUN mkdir -p data/collected data/pending_review data/approved data/validation alerts/images alerts/logs
+# Copiar el bundle del frontend compilado en la Etapa 1
+COPY --from=frontend-builder /build/dist ./frontend/dist
+
+# Crear directorios necesarios para persistencia de datos, alertas, incidencias e histórico
+RUN mkdir -p data/collected data/pending_review data/approved data/validation data/incidents alerts/images alerts/logs historica
 
 # Exponer puerto FastAPI + Frontend integrado
 EXPOSE 8000

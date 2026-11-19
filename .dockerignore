@@ -1,0 +1,50 @@
+# Git y control de versiones
+.git
+.gitignore
+
+# Entornos virtuales y Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+
+# Testing y cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node y dependencias de frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Documentación académica y presentaciones pesadas
+fases/
+*.docx
+*.pdf
+*.pptx
+*.mdj
+
+# Datos temporales, históricos y rejected
+historica/
+data/rejected/
+data/training_workspace/
+runs/
+*.log
+
+# Snapshots de alertas temporales
+alerts/images/*.jpg
+alerts/logs/*.jsonl
+
+# Configuración de IDE y OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
