@@ -1,0 +1,7 @@
+﻿python : No known vulnerabilities found
+En línea: 1 Carácter: 135
++ ... {}; cd Capstone; python -m pip_audit -r requirements.txt *>&1 | Out-F ...
++                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (No known vulnerabilities found:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

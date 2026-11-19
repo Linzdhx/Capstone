@@ -1,0 +1,3 @@
+# Dependencias para pruebas y auditorías de seguridad y desarrollo
+bandit>=1.7.8
+pip-audit>=2.7.3
