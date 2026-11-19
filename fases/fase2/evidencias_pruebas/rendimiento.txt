@@ -1,0 +1,108 @@
+﻿==================================================================
+  BENCHMARK DE RENDIMIENTO — CVW INVENTORY MONITOR (RNF-01)
+==================================================================
+Modelo: models\production\best.pt (YOLOv8s)
+Dispositivo de cómputo: CUDA (NVIDIA GeForce RTX 3060 Laptop GPU)
+Muestras de prueba analizadas: 20 imágenes
+------------------------------------------------------------------
+Latencia Mínima:      13.57 ms
+Latencia Mediana:     36.82 ms
+Latencia Media:       40.60 ms
+Latencia p95:         82.78 ms
+Latencia Máxima:      91.61 ms
+------------------------------------------------------------------
+2026-11-18 21:49:13 [INFO] [inventory_monitor]: CameraManager: escaneando cámaras físicas disponibles...
+2026-11-18 21:49:14 [INFO] [inventory_monitor]: CameraManager: cámara física index=0 ('FIFINE K669 Microphone') registrada como 'main'.
+2026-11-18 21:49:14 [INFO] [inventory_monitor]: CameraManager: hilo de hotplug iniciado.
+2026-11-18 21:49:14 [INFO] [inventory_monitor]: Cargando modelo YOLOv8 desde D:\trabajo\Proyecto CVW v1\Proyecto CVW v2\Capstone\models\production\best.pt en dispositivo 'cuda'...
+2026-11-18 21:49:14 [INFO] [inventory_monitor]: Clases detectadas en el modelo: {0: 'missing', 1: 'product'}
+2026-11-18 21:49:14 [INFO] [inventory_monitor]: Modelo versión v001 cargado exitosamente.
+2026-11-18 21:49:15 [INFO] [inventory_monitor]: IncidentService cargado: 7 ubicaciones, 7 incidencias, 3 registros de alerta.
+2026-11-18 21:49:15 [INFO] [inventory_monitor]: 
+============================================================
+[GONDOLA EVALUATION DEBUG]
+Camera: CAM-01
+Shelf: A-01
+Source: 002_1793906544950.jpg
+Raw detections: 300
+Valid detections: 300 (Products: 300, Missing: 0)
+Confidence scores: [0.824, 0.823, 0.811, 0.811, 0.81, 0.808, 0.808, 0.804, 0.803, 0.801, 0.801, 0.798, 0.797, 0.795, 0.795]
+Average confidence: 0.692
+Estimated occupancy: 37.25%
+Final status: STOCK_CORRECTO
+============================================================
+2026-11-18 21:49:15 [INFO] [inventory_monitor]: Imagen '002_1793906544950.jpg' analizada: Stock correcto / Sin faltantes (descartada de /historica).
+2026-11-18 21:49:15 [INFO] [inventory_monitor]: 
+============================================================
+[GONDOLA EVALUATION DEBUG]
+Camera: CAM-01
+Shelf: A-01
+Source: 002_1793906544950.jpg
+Raw detections: 300
+Valid detections: 300 (Products: 300, Missing: 0)
+Confidence scores: [0.824, 0.823, 0.811, 0.811, 0.81, 0.808, 0.808, 0.804, 0.803, 0.801, 0.801, 0.798, 0.797, 0.795, 0.795]
+Average confidence: 0.692
+Estimated occupancy: 37.25%
+Final status: STOCK_CORRECTO
+============================================================
+2026-11-18 21:49:15 [INFO] [inventory_monitor]: Imagen '002_1793906544950.jpg' analizada: Stock correcto / Sin faltantes (descartada de /historica).
+2026-11-18 21:49:15 [INFO] [inventory_monitor]: 
+============================================================
+[GONDOLA EVALUATION DEBUG]
+Camera: CAM-01
+Shelf: A-01
+Source: 002_1793906544950.jpg
+Raw detections: 300
+Valid detections: 300 (Products: 300, Missing: 0)
+Confidence scores: [0.824, 0.823, 0.811, 0.811, 0.81, 0.808, 0.808, 0.804, 0.803, 0.801, 0.801, 0.798, 0.797, 0.795, 0.795]
+Average confidence: 0.692
+Estimated occupancy: 37.25%
+Final status: STOCK_CORRECTO
+============================================================
+2026-11-18 21:49:15 [INFO] [inventory_monitor]: Imagen '002_1793906544950.jpg' analizada: Stock correcto / Sin faltantes (descartada de /historica).
+2026-11-18 21:49:16 [INFO] [inventory_monitor]: 
+============================================================
+[GONDOLA EVALUATION DEBUG]
+Camera: CAM-01
+Shelf: A-01
+Source: 002_1793906544950.jpg
+Raw detections: 300
+Valid detections: 300 (Products: 300, Missing: 0)
+Confidence scores: [0.824, 0.823, 0.811, 0.811, 0.81, 0.808, 0.808, 0.804, 0.803, 0.801, 0.801, 0.798, 0.797, 0.795, 0.795]
+Average confidence: 0.692
+Estimated occupancy: 37.25%
+Final status: STOCK_CORRECTO
+============================================================
+2026-11-18 21:49:16 [INFO] [inventory_monitor]: Imagen '002_1793906544950.jpg' analizada: Stock correcto / Sin faltantes (descartada de /historica).
+2026-11-18 21:49:16 [INFO] [inventory_monitor]: 
+============================================================
+[GONDOLA EVALUATION DEBUG]
+Camera: CAM-01
+Shelf: A-01
+Source: 002_1793906544950.jpg
+Raw detections: 300
+Valid detections: 300 (Products: 300, Missing: 0)
+Confidence scores: [0.824, 0.823, 0.811, 0.811, 0.81, 0.808, 0.808, 0.804, 0.803, 0.801, 0.801, 0.798, 0.797, 0.795, 0.795]
+Average confidence: 0.692
+Estimated occupancy: 37.25%
+Final status: STOCK_CORRECTO
+============================================================
+2026-11-18 21:49:16 [INFO] [inventory_monitor]: Imagen '002_1793906544950.jpg' analizada: Stock correcto / Sin faltantes (descartada de /historica).
+2026-11-18 21:49:16 [INFO] [inventory_monitor]: 
+============================================================
+[GONDOLA EVALUATION DEBUG]
+Camera: CAM-01
+Shelf: A-01
+Source: 002_1793906544950.jpg
+Raw detections: 300
+Valid detections: 300 (Products: 300, Missing: 0)
+Confidence scores: [0.824, 0.823, 0.811, 0.811, 0.81, 0.808, 0.808, 0.804, 0.803, 0.801, 0.801, 0.798, 0.797, 0.795, 0.795]
+Average confidence: 0.692
+Estimated occupancy: 37.25%
+Final status: STOCK_CORRECTO
+============================================================
+2026-11-18 21:49:16 [INFO] [inventory_monitor]: Imagen '002_1793906544950.jpg' analizada: Stock correcto / Sin faltantes (descartada de /historica).
+Latencia API Endpoint (POST /api/stock/upload) promedio:   176.50 ms
+------------------------------------------------------------------
+Criterio RNF-01 (Inferencia < 5000 ms): CUMPLE (APROBADO)
+==================================================================
