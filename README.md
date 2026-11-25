@@ -130,6 +130,8 @@ ModelManager (Hot-Swap to Production & Rollback to Archive)
 │   ├── fase3/              # Avances Fase 3 (Fernandez, Merino, Salvatierra, Yañez)
 │   └── Presentaciones/     # Diapositivas y material de exposición del equipo (PPTX y PDF)
 │
+├── iniciar_proyecto.bat    # Lanzador directo de un clic para Windows (auto-apertura de navegador)
+├── run.py                  # Script de inicio del servidor backend
 ├── configs/
 │   └── app_config.yaml     # Configuración externa de la aplicación
 ├── Dockerfile              # Contenedor de producción
@@ -201,10 +203,19 @@ ALERT_WEBHOOK_URL=
 
 ## 5. Ejecución Local
 
-### Método Rápido (Recomendado):
+### Método Rápido en Windows (Recomendado):
+Haz doble clic sobre el archivo ejecutable o córrelo desde consola:
+```bash
+iniciar_proyecto.bat
+```
+*Inicia automáticamente el backend, activa el entorno virtual si existe y abre la aplicación en `http://localhost:8000` en tu navegador predeterminado.*
+
+### O mediante consola Python:
 ```bash
 python run.py
 ```
+> **Nota para usuarios de Windows:** Uvicorn informará en consola `Uvicorn running on http://0.0.0.0:8000`. En Windows los navegadores web no admiten la dirección `0.0.0.0` (provoca `ERR_ADDRESS_INVALID`). Ingresa siempre a:
+> 👉 **[http://localhost:8000](http://localhost:8000)** o **[http://127.0.0.1:8000](http://127.0.0.1:8000)**
 
 ### O mediante Uvicorn CLI:
 ```bash
@@ -505,6 +516,14 @@ Cobertura de pruebas:
   Configuración de encabezados HTTP `no-cache, no-store, must-revalidate` en el montaje estático de FastAPI para asegurar que los navegadores siempre reciban la última versión compilada del frontend React.
 - **Diagnóstico IA (Debug) en Dashboard:** Adición de un componente desplegable interactivo en las tarjetas de pasillo (`AisleCard.tsx`) que expone métricas en tiempo real (cajas crudas, cajas válidas tras aplicar filtros, porcentaje de ocupación, confianza promedio y array de confianzas) para facilitar la depuración visual.
 - **Refinamiento de Lógica de Detección:** Actualización del pipeline de filtrado de objetos (`incident_service.py`) implementando umbrales de confianza asimétricos y reglas morfológicas para distinguir correctamente entre una "góndola completamente vacía" (alerta crítica SIN_STOCK) y espacios vacíos regulares.
+- **Capturas Multi-Cámara Independientes en Active Learning:**
+  El endpoint `POST /api/dataset/capture` ahora admite el parámetro de cámara (`?cam_id=...` o `/capture/{cam_id}`). Al hacer clic en «Capturar Muestra» dentro de cualquier tarjeta de video, el sistema extrae el fotograma y las predicciones YOLOv8 correspondientes a esa cámara específica, etiquetando el origen (ej. `Cámara 1 (main)`, `Cámara 2 (cam-2)`).
+- **Silenciado y Fallback Robusto de OpenCV (DSHOW / MSMF):**
+  Supresión de advertencias ruidosas en stderr (`cv::VideoCapture::open VIDEOIO(DSHOW)...`) y fallback automático entre DirectShow y Media Foundation ante cámaras ocupadas o ausentes, con paso limpio a modo sintético.
+- **Enrutamiento SPA en FastAPI (`NoCacheStaticFiles`):**
+  Incorporación de fallback a `index.html` para rutas del cliente de React (`/alerts`, `/camera`, `/dataset`), garantizando que recargar o ingresar directamente a sub-páginas no devuelva error 404.
+- **Lanzador de Doble Clic para Windows (`iniciar_proyecto.bat`):**
+  Script de inicio rápido que autodetecta el entorno, arranca el servidor backend y abre automáticamente el navegador en `http://localhost:8000`.
 - **Estabilidad en Windows:** Corrección en el arranque del servidor (`run.py`) para forzar la salida de stdout/stderr a UTF-8 y prevenir cuelgues (UnicodeEncodeError) al renderizar emojis o caracteres especiales en la consola de Windows.
 
 ---
@@ -567,7 +586,7 @@ El backend FastAPI expone una API REST modular, asíncrona y de alto rendimiento
 | `GET` | `/api/dataset/stats` | - | Conteo cuantitativo de muestras en `collected`, `pending_review`, `approved` y `validation`. |
 | `GET` | `/api/dataset/samples` | Query param: `stage` | Listado de muestras con metadatos y bounding boxes. |
 | `GET` | `/api/dataset/images/{stage}/{file}` | Path params: `stage`, `file` | Entrega el archivo de imagen de una muestra del dataset. |
-| `POST` | `/api/dataset/capture` | - | Captura manualmente un fotograma del stream para inspección supervisada. |
+| `POST` | `/api/dataset/capture` o `/api/dataset/capture/{cam_id}` | Query/Path param: `cam_id` (opcional, default `main`) | Captura manualmente un fotograma y predicciones YOLOv8 de la cámara indicada para Active Learning. |
 | `POST` | `/api/dataset/review/{stage}/{id}` | `{"action": "approve"\|"reject", ...}` | Corrige clases de bounding boxes y transiciona muestras a `approved` o `rejected`. |
 
 #### Reentrenamiento Desacoplado
@@ -639,5 +658,6 @@ fases/
 |---|---|
 | `fases/fase1/` | 1.4 Formativa Fase 1, 1.5 Definición del Proyecto, Presentación del Proyecto, SRS, Requisitos No Funcionales, Metodología Scrum, Product Vision, Product Backlog, Sprint Backlog, Definition of Done y Diagramas UML (modelo 4+1) |
 | `fases/fase2/` | 2.4 Desarrollo del Proyecto, 2.6 Informe Final, Informe Intermedio de Avance, Informe Técnico del modelo, Manual Técnico, Plan de Pruebas, Modelo de Datos, Retrospectivas, Innovación y evidencias de los mejores y peores casos |
+| `fases/fase3/` | 3.3 Informe Final Proyecto APT (.docx y .pdf), Documento de Diseño (.docx y .pdf), Dashboard e Informe de Métricas YOLOv8s (.html y .pdf), Pruebas de Seguridad, Reporte Visual de Seguridad y evidencias en `Evidencias/Seguridad/` |
 
 Los documentos en Word y PowerPoint incluyen además su versión en PDF para leerlos directamente en GitHub.
