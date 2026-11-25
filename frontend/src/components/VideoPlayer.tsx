@@ -47,12 +47,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const handleManualCapture = async () => {
     try {
       setIsCapturing(true);
-      const res = await api.captureSample();
-      setCaptureMsg('¡Muestra guardada en Revisión!');
+      const res = await api.captureSample(camId);
+      const displayName = camName || (camId === 'main' ? 'Cámara 1' : camId) || 'cámara';
+      setCaptureMsg(`¡Muestra de ${displayName} guardada en Revisión!`);
       if (onSnapshotCaptured) onSnapshotCaptured();
       setTimeout(() => setCaptureMsg(null), 3000);
     } catch (err: any) {
-      setCaptureMsg('Error al capturar');
+      setCaptureMsg(err.message || 'Error al capturar');
       setTimeout(() => setCaptureMsg(null), 3000);
     } finally {
       setIsCapturing(false);

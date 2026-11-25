@@ -1,6 +1,6 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -70,14 +70,31 @@ class NoCacheStaticFiles(StaticFiles):
         return False
 
     async def get_response(self, path: str, scope):
-        response = await super().get_response(path, scope)
+        try:
+            response = await super().get_response(path, scope)
+        except HTTPException as exc:
+            # SPA Fallback: si no encuentra la ruta (ej. /camera, /alerts), sirve index.html
+            if exc.status_code == 404 and self.html:
+                response = await super().get_response("index.html", scope)
+            else:
+                raise exc
+
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
         return response
 
-# Montar frontend estático si existe la build
+# Montar frontend estático si existe la build, o proveer endpoint informativo en desarrollo
 frontend_dist = BASE_DIR / "frontend" / "dist"
 if frontend_dist.exists():
     app.mount("/", NoCacheStaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+else:
+    @app.get("/")
+    def root():
+        return {
+            "message": "CVW Inventory Monitor API en ejecución.",
+            "docs": "/docs",
+            "health": "/api/health",
+            "frontend_status": "Frontend no compilado. Ejecuta 'npm install && npm run build' en 'frontend/' para servirlo aquí, o inicia Vite en 'frontend/' con 'npm run dev' (http://localhost:5173)."
+        }
 

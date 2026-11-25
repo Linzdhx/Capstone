@@ -1,6 +1,15 @@
+import os
 import time
 import threading
+
+# Silenciar advertencias internas de C++ de OpenCV (ej. escaneo de índices sin cámara o fallos DSHOW)
+os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")
 import cv2
+try:
+    cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
+except Exception:
+    pass
+
 import numpy as np
 from typing import Optional, Tuple, Dict, Any
 
@@ -173,14 +182,21 @@ class CameraService:
                 with self._lock:
                     self._status = "CONNECTING"
 
-                # En Windows, usar cv2.CAP_DSHOW suele mejorar la apertura de webcams USB
-                backend_flag = cv2.CAP_DSHOW if isinstance(source, int) else cv2.CAP_FFMPEG
-                cap = cv2.VideoCapture(source, backend_flag)
-                
-                # Configurar resolución recomendada
+                # En Windows, intentar DSHOW y como fallback MSMF / default
                 if isinstance(source, int):
-                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.camera.width)
-                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.camera.height)
+                    cap = cv2.VideoCapture(source, cv2.CAP_DSHOW)
+                    if not cap.isOpened():
+                        cap.release()
+                        cap = cv2.VideoCapture(source, cv2.CAP_MSMF)
+                    if not cap.isOpened():
+                        cap.release()
+                        cap = cv2.VideoCapture(source)
+
+                    if cap.isOpened():
+                        cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.camera.width)
+                        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.camera.height)
+                else:
+                    cap = cv2.VideoCapture(source, cv2.CAP_FFMPEG)
 
                 if not cap.isOpened():
                     raise ConnectionError(f"No se pudo abrir la cámara {source}")
@@ -243,20 +259,30 @@ class CameraService:
                 self._frame_count = 0
                 self._fps_timer = now
 
+def _test_camera_index(idx: int) -> bool:
+    """Prueba si un índice responde abriendo primero con DSHOW y luego con MSMF."""
+    for backend in (cv2.CAP_DSHOW, cv2.CAP_MSMF):
+        cap = cv2.VideoCapture(idx, backend)
+        if cap.isOpened():
+            ret, _ = cap.read()
+            cap.release()
+            if ret:
+                return True
+        else:
+            cap.release()
+    return False
+
+
 def _detect_physical_cameras(max_index: int = 4) -> list:
     """
     Escanea los índices 0..max_index y devuelve la lista de índices que tienen
-    una cámara física conectada. Usa CAP_DSHOW en Windows para evitar demoras.
+    una cámara física conectada.
     SOLO llamar al inicio, cuando ningún CameraService está activo aún.
     """
     found = []
     for idx in range(max_index):
-        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
-        if cap.isOpened():
-            ret, _ = cap.read()
-            if ret:
-                found.append(idx)
-        cap.release()
+        if _test_camera_index(idx):
+            found.append(idx)
         time.sleep(0.05)  # pequeña pausa entre pruebas
     return found
 
@@ -271,12 +297,8 @@ def _detect_new_camera_indices(skip_indices: set, max_index: int = 4) -> list:
     for idx in range(max_index):
         if idx in skip_indices:
             continue  # Ya está registrado y activo — nunca tocarlo
-        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
-        if cap.isOpened():
-            ret, _ = cap.read()
-            if ret:
-                found.append(idx)
-        cap.release()
+        if _test_camera_index(idx):
+            found.append(idx)
         time.sleep(0.05)
     return found
 
@@ -295,7 +317,14 @@ def get_windows_camera_devices() -> list:
             try:
                 sk = winreg.OpenKey(k, sub + r'\#GLOBAL\Device Parameters')
                 fname, _ = winreg.QueryValueEx(sk, 'FriendlyName')
-                if fname not in names and 'controller' not in fname.lower():
+                fname_lower = fname.lower()
+                if (
+                    fname not in names
+                    and 'controller' not in fname_lower
+                    and 'microphone' not in fname_lower
+                    and 'micrófono' not in fname_lower
+                    and 'audio' not in fname_lower
+                ):
                     names.append(fname)
             except Exception:
                 pass

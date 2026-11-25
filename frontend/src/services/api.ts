@@ -118,8 +118,13 @@ export const api = {
     const res = await fetch(`/api/dataset/samples?stage=${stage}`);
     return res.json();
   },
-  async captureSample() {
-    const res = await fetch('/api/dataset/capture', { method: 'POST' });
+  async captureSample(camId?: string) {
+    const url = camId ? `/api/dataset/capture?cam_id=${encodeURIComponent(camId)}` : '/api/dataset/capture';
+    const res = await fetch(url, { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Error al capturar muestra');
+    }
     return res.json();
   },
   async reviewSample(stage: string, sampleId: string, action: 'approve' | 'reject' | 'update_labels', annotations?: any[]) {

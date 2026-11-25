@@ -145,7 +145,7 @@ ModelManager (Hot-Swap to Production & Rollback to Archive)
 
 ### Paso 1: Clonar o posicionarse en el proyecto
 ```bash
-cd "d:\trabajo\Proyecto CVW v1\Modelo entrenado"
+cd "d:\trabajo\Proyecto CVW v2\Capstone"
 ```
 
 ### Paso 2: Instalar dependencias backend de Python

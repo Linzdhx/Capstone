@@ -223,7 +223,9 @@ export const DatasetReviewPage: React.FC = () => {
                   <h3 className="font-semibold text-sm text-slate-100">
                     Muestra {selectedSample.id}
                   </h3>
-                  <p className="text-xs text-slate-400">{selectedSample.timestamp} • Modelo: {selectedSample.model_version}</p>
+                  <p className="text-xs text-slate-400">
+                    {selectedSample.timestamp} • Modelo: {selectedSample.model_version} {selectedSample.source ? `• Origen: ${selectedSample.source}` : ''}
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-2">

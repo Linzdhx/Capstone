@@ -29,22 +29,37 @@ def get_dataset_image(stage: str, filename: str):
     return FileResponse(file_path, media_type="image/jpeg")
 
 @router.post("/capture")
-def manual_capture():
-    main_cam = detection_service.camera_mgr.get_camera("main")
-    frame = main_cam.get_latest_frame() if main_cam else None
-    if frame is None:
-        raise HTTPException(status_code=503, detail="No hay frames disponibles de la cámara")
+@router.post("/capture/{cam_id}")
+def manual_capture(cam_id: Optional[str] = None):
+    target_id = cam_id or "main"
+    cam = detection_service.camera_mgr.get_camera(target_id)
+    if not cam:
+        target_id = "main"
+        cam = detection_service.camera_mgr.get_camera("main")
 
-    det_result, metrics, _ = detection_service.get_latest_result("main")
+    frame = cam.get_latest_frame() if cam else None
+    if frame is None:
+        raise HTTPException(status_code=503, detail=f"No hay frames disponibles de la cámara '{target_id}'")
+
+    det_result, metrics, _ = detection_service.get_latest_result(target_id)
+    if not det_result.detections:
+        try:
+            h, w = frame.shape[:2]
+            det_result = detection_service.model_mgr.predict(frame)
+            metrics = detection_service.inventory.calculate_metrics(det_result.detections, w, h)
+        except Exception:
+            pass
+
+    cam_name = cam.name if cam else target_id
     item = dataset_service.capture_sample(
         frame=frame,
         det_result=det_result,
         empty_rate=metrics.empty_rate,
-        reason="manual_capture",
-        source=main_cam.source_type if main_cam else "unknown",
+        reason=f"manual_capture_{target_id}",
+        source=f"{cam_name} ({target_id})",
         stage="pending_review"
     )
-    return {"message": "Muestra capturada para revisión", "sample": item}
+    return {"message": f"Muestra capturada para revisión desde {cam_name}", "sample": item}
 
 @router.post("/review/{stage}/{sample_id}")
 def review_sample(stage: str, sample_id: str, action: ReviewAction):
