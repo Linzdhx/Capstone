@@ -31,7 +31,3 @@
 | PB-F5 | Exportar el modelo a formatos optimizados (ONNX) para ejecución en equipos de sala. | ERS 10.6 |
 | PB-F6 | Integración con los sistemas de inventario del cliente. | ERS 10.6 |
 
-## Notas
-
-- La columna **Estimación** no está definida en los documentos del proyecto. El equipo debe completarla (por ejemplo, con puntos de historia).
-- En la Fase 1 (Guía 1.5) el proyecto se planteó con segmentación de instancias, base de datos SQLite/PostgreSQL y alertas por Telegram/Webhook. El ERS v4 actualizó esos puntos a detección con bounding boxes, carpeta de ubicaciones dentro del proyecto y alertas por correo electrónico. Este backlog sigue el ERS v4.
