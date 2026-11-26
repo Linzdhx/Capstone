@@ -36,4 +36,4 @@ Desarrollar un sistema automatizado de monitoreo e identificación de quiebres d
 ## Alcance
 
 - **Incluye:** procesamiento por lotes de imágenes de góndolas; detección de productos y espacios vacíos; cálculo del % de stock visible; semáforo operativo (Verde 100–41 %, Amarillo 40–21 %, Rojo 20–0 %); consulta de ubicación; alertas automáticas; API del sistema; demo web de visualización.
-- **No incluye:** conexión a cámaras en vivo (CCTV/RTSP); sensores IoT o básculas; reconocimiento de SKU o marcas individuales; reposición automática ni integración con el sistema de inventario de Walmart.
+
