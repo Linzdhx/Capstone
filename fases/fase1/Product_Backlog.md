@@ -1,6 +1,5 @@
 # Product Backlog — Computer Vision Walmart (CVW)
 
-> **Fuentes:** ERS v4 (sección 13.2, requisitos funcionales; sección 10.3, usuarios; sección 10.6, requisitos futuros) y Guía 1.5 (sprints).
 > Cada ítem corresponde a un requisito funcional del ERS. La prioridad y el sprint vienen del ERS; la historia de usuario reformula el requisito desde el punto de vista del usuario.
 
 | ID | Historia de usuario | Requisito | Prioridad | Sprint | Estimación (pts) |
