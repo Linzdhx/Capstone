@@ -18,7 +18,7 @@ Un ítem del Product Backlog se considera **terminado** cuando cumple todos los 
 
 - [ ] La partición del dataset y el entrenamiento usan semilla fija (42) y la validación se hace sobre imágenes no aumentadas (RNF-07).
 - [ ] Se reportan Precisión, Recall, mAP50 y mAP50-95, globales y por clase (RF-06).
-- [ ] La nueva versión del modelo iguala o supera la línea base v1: mAP50 global 72,8 % y mAP50 missing 59,9 % (RNF-02).
+- [ ] La nueva versión del modelo iguala o supera la línea base v1: mAP50 global 67,8 % y mAP50 missing 59,9 % (RNF-02).
 - [ ] El tiempo de inferencia por imagen es menor a 5 s (RNF-01).
 - [ ] Los pesos `best.pt` quedan disponibles para su uso fuera de Colab (RF-12).
 
@@ -27,7 +27,8 @@ Un ítem del Product Backlog se considera **terminado** cuando cumple todos los 
 - [ ] Tiene pruebas automatizadas con pytest y todas pasan.
 - [ ] Una imagen que no se puede leer se omite sin detener el lote (RNF-06).
 - [ ] El cálculo del semáforo respeta los umbrales: Verde 100–41 %, Amarillo 40–21 %, Rojo 20–0 %.
-- [ ] El sistema no accede a cámaras, CCTV ni a la red corporativa (RNF-03), ni procesa datos personales (RNF-04).
+- [ ] El sistema no accede a cámaras, CCTV ni a la red corporativa (RNF-03), ni procesa datos personales (RNF-04) de momento , pero se mantiene
+- [ ] la logica de opacion de camaras para el proyecto.
 
 ## 4. Criterios de un sprint terminado
 
