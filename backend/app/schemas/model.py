@@ -14,6 +14,8 @@ class ModelVersionInfo(BaseModel):
     classes: Dict[str, str]
     task: str = "detect"
     base_model: Optional[str] = None
+    architecture: Optional[str] = None
+    training_dataset: Optional[str] = None
     confidence_threshold: float = 0.25
     iou_threshold: float = 0.45
     metrics: Optional[Dict[str, Any]] = None

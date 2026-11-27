@@ -109,7 +109,9 @@ export const ModelsPage: React.FC = () => {
                     EN PRODUCCIÓN
                   </span>
                 </div>
-                <p className="text-xs font-mono text-slate-400">Versión: {activeModel.version} • Archivo: best.pt</p>
+                <p className="text-xs font-mono text-slate-400">
+                  Versión: {activeModel.version} • Base: {activeModel.base_model || 'yolov8s.pt'} {activeModel.architecture ? `(${activeModel.architecture})` : ''} • Archivo: best.pt
+                </p>
               </div>
             </div>
 
@@ -123,31 +125,34 @@ export const ModelsPage: React.FC = () => {
             <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
               <span className="text-slate-400 text-xs block">mAP50</span>
               <span className="text-lg font-bold font-mono text-emerald-400">
-                {activeModel.metrics?.mAP50 ?? '0.85'}
+                {activeModel.metrics?.mAP50 ?? '0.633'}
               </span>
             </div>
             <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
               <span className="text-slate-400 text-xs block">mAP50-95</span>
               <span className="text-lg font-bold font-mono text-slate-200">
-                {activeModel.metrics?.mAP50_95 ?? '0.62'}
+                {activeModel.metrics?.mAP50_95 ?? '0.336'}
               </span>
             </div>
             <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
               <span className="text-slate-400 text-xs block">Precision</span>
               <span className="text-lg font-bold font-mono text-slate-200">
-                {activeModel.metrics?.precision ?? '0.88'}
+                {activeModel.metrics?.precision ?? '0.692'}
               </span>
             </div>
             <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
               <span className="text-slate-400 text-xs block">Recall</span>
               <span className="text-lg font-bold font-mono text-slate-200">
-                {activeModel.metrics?.recall ?? '0.82'}
+                {activeModel.metrics?.recall ?? '0.629'}
               </span>
             </div>
           </div>
 
-          <div className="text-xs text-slate-400 flex items-center justify-between pt-2">
+          <div className="text-xs text-slate-400 flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-2 border-t border-slate-800/60">
             <span>Clases: <strong>0: missing, 1: product</strong></span>
+            {activeModel.training_dataset && (
+              <span>Dataset: <span className="text-slate-300 font-medium">{activeModel.training_dataset}</span></span>
+            )}
             <span>Ruta: <code className="text-slate-300 font-mono">models/production/best.pt</code></span>
           </div>
         </div>

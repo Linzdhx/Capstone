@@ -107,6 +107,8 @@ export interface ModelVersionInfo {
   classes: Record<string, string>;
   task: string;
   base_model?: string;
+  architecture?: string;
+  training_dataset?: string;
   confidence_threshold: number;
   iou_threshold: number;
   metrics?: {
